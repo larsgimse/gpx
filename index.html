@@ -22,13 +22,13 @@
     }
 
     .controls {
-      margin-bottom: 10px;
+      margin-bottom: 15px;
       font-size: 13px;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 10px;
-      max-width: 900px;
+      gap: 12px;
+      max-width: 850px;
       justify-content: center;
     }
 
@@ -60,58 +60,25 @@
       cursor: pointer;
     }
 
-    /* Spesialfarge for Flytt spor-knappen når den er aktiv */
-    button#toggle-pan-btn.active {
-      background: #28a745;
-      color: #fff;
-    }
-
     body:not(.inverted) button {
       background: #000;
       color: #fff;
     }
 
-    body:not(.inverted) button#toggle-pan-btn.active {
-      background: #218838;
-      color: #fff;
-    }
-
     button:hover {
-      opacity: 0.9;
+      background: #ddd;
     }
 
-    /* Progresjonsbar-styling */
-    #progress-container {
-      width: 650px;
-      margin-bottom: 15px;
-      display: none;
-    }
-
-    #progress-bar-bg {
-      width: 100%;
-      height: 8px;
+    body:not(.inverted) button:hover {
       background: #333;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-
-    body:not(.inverted) #progress-bar-bg {
-      background: #e0e0e0;
-    }
-
-    #progress-bar-fill {
-      width: 0%;
-      height: 100%;
-      background: #007bff;
-      transition: width 0.2s ease;
     }
 
     #status {
-      font-weight: 600;
-      font-size: 12px;
+      font-weight: 500;
       color: #aaa;
-      margin-top: 5px;
+      width: 100%;
       text-align: center;
+      margin-top: 4px;
     }
 
     body:not(.inverted) #status {
@@ -127,12 +94,9 @@
       position: relative;
       box-shadow: 0 10px 25px rgba(0,0,0,0.1);
       overflow: hidden;
+      cursor: grab;
       filter: invert(1) hue-rotate(180deg);
       transition: filter 0.2s ease;
-    }
-
-    #frame.can-pan {
-      cursor: grab;
     }
 
     #frame.grabbing {
@@ -152,6 +116,7 @@
       z-index: 1;
     }
 
+    /* Flyttbar Tittel-element */
     #title-container {
       position: absolute;
       top: 25px;
@@ -162,6 +127,9 @@
       align-items: center;
       gap: 6px;
       background: transparent;
+      cursor: move;
+      user-select: none;
+      padding: 2px 6px;
     }
 
     #title-input {
@@ -175,12 +143,14 @@
       outline: none;
       color: #000;
       font-family: inherit;
+      cursor: text;
     }
 
     #title-input:hover, #title-input:focus {
       border-color: #ccc;
     }
 
+    /* Interaktive etiketter */
     .label-container {
       position: absolute;
       z-index: 10;
@@ -223,17 +193,14 @@
   <div class="controls">
     <input type="file" id="gpx-input" accept=".gpx">
     
-    <!-- Knapp for å slå av/på flytting/panorering for å spare ressurser -->
-    <button id="toggle-pan-btn">Flytt spor: AV</button>
-
     <div class="control-group">
       <label><input type="checkbox" id="toggle-map"> Kart</label>
-      <input type="range" id="map-opacity" min="0.1" max="3.0" step="0.1" value="1.0" style="width:60px;" title="Kartintensitet">
+      <input type="range" id="map-opacity" min="0.1" max="1" step="0.05" value="0.35" style="width:50px;" title="Kartintensitet">
     </div>
 
     <div class="control-group">
       <label><input type="checkbox" id="toggle-border"> Ramme</label>
-      <input type="range" id="border-width" min="1" max="10" value="2" style="width:45px;" title="Rammetykkelse">
+      <input type="range" id="border-width" min="1" max="10" value="2" style="width:50px;" title="Rammetykkelse">
     </div>
 
     <div class="control-group">
@@ -241,14 +208,7 @@
     </div>
 
     <button id="download-btn">Last ned bilde</button>
-  </div>
-
-  <!-- Synlig progresjonsbar under kontrollene -->
-  <div id="progress-container">
-    <div id="progress-bar-bg">
-      <div id="progress-bar-fill"></div>
-    </div>
-    <div id="status">Klar til å laste opp GPX-fil...</div>
+    <div id="status">Last opp en GPX-fil</div>
   </div>
 
   <div id="frame" class="inverted">
@@ -266,12 +226,10 @@
     const frame = document.getElementById('frame');
     const labelsLayer = document.getElementById('labels-layer');
     const statusEl = document.getElementById('status');
-    const progressContainer = document.getElementById('progress-container');
-    const progressBarFill = document.getElementById('progress-bar-fill');
     const titleContainer = document.getElementById('title-container');
+    const titleInput = document.getElementById('title-input');
     const deleteTitleBtn = document.getElementById('delete-title');
     
-    const togglePanBtn = document.getElementById('toggle-pan-btn');
     const toggleMap = document.getElementById('toggle-map');
     const mapOpacity = document.getElementById('map-opacity');
     const toggleBorder = document.getElementById('toggle-border');
@@ -282,20 +240,22 @@
     let detectedPeaks = []; 
     let loadedMapTiles = new Map();
 
-    let canPanTrack = false;
+    // Panoreringsoffset i piksler for sporet
     let offsetX = 0;
     let offsetY = 0;
     let isPanning = false;
     let panStartX = 0;
     let panStartY = 0;
 
-    const CARTO_KEY = "cb1_2o3a_1_671194bbedbad28841272141";
+    // Posisjon for tittel (piksler relativt til topp/venstre)
+    let titlePos = { x: 325, y: 25 }; 
 
+    // Event listeners
     document.getElementById('gpx-input').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
-      showProgress("Leser inn GPX-fil...", 15);
+      statusEl.textContent = "Leser GPX-fil...";
 
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -306,22 +266,9 @@
 
     document.getElementById('download-btn').addEventListener('click', downloadImage);
 
-    deleteTitleBtn.addEventListener('click', () => {
+    deleteTitleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       titleContainer.style.display = 'none';
-    });
-
-    // Toggle for om man ønsker å flytte sporet eller ikke
-    togglePanBtn.addEventListener('click', () => {
-      canPanTrack = !canPanTrack;
-      if (canPanTrack) {
-        togglePanBtn.classList.add('active');
-        togglePanBtn.textContent = "Flytt spor: PÅ";
-        frame.classList.add('can-pan');
-      } else {
-        togglePanBtn.classList.remove('active');
-        togglePanBtn.textContent = "Flytt spor: AV";
-        frame.classList.remove('can-pan', 'grabbing');
-      }
     });
 
     toggleBorder.addEventListener('change', updateFrameBorder);
@@ -343,11 +290,50 @@
     toggleMap.addEventListener('change', () => redrawCanvasAndLines());
     mapOpacity.addEventListener('input', () => redrawCanvasAndLines());
 
-    // Panorering kjøres KUN dersom canPanTrack er TRUE
+    // Gjør tittelen flyttbar
+    makeElementDraggable(titleContainer, titlePos, true);
+
+    function makeElementDraggable(element, posObj, isCenterTransform = false) {
+      let isDragging = false;
+      let startMouseX = 0;
+      let startMouseY = 0;
+      let startPosX = 0;
+      let startPosY = 0;
+
+      element.addEventListener('mousedown', (e) => {
+        if (e.target === titleInput || e.target.classList.contains('delete-btn')) return;
+        
+        isDragging = true;
+        startMouseX = e.clientX;
+        startMouseY = e.clientY;
+        startPosX = posObj.x;
+        startPosY = posObj.y;
+        
+        e.stopPropagation();
+        e.preventDefault();
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        posObj.x = startPosX + (e.clientX - startMouseX);
+        posObj.y = startPosY + (e.clientY - startMouseY);
+
+        element.style.left = `${posObj.x}px`;
+        element.style.top = `${posObj.y}px`;
+        if (isCenterTransform) {
+          element.style.transform = 'translateX(-50%)';
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        isDragging = false;
+      });
+    }
+
+    // Panorering av sporet på canvas
     frame.addEventListener('mousedown', (e) => {
-      if (!canPanTrack) return; 
       if (e.target.closest('.label-container') || e.target.closest('#title-container')) return;
-      
       isPanning = true;
       panStartX = e.clientX - offsetX;
       panStartY = e.clientY - offsetY;
@@ -355,7 +341,7 @@
     });
 
     window.addEventListener('mousemove', (e) => {
-      if (!isPanning || !canPanTrack) return;
+      if (!isPanning) return;
       offsetX = e.clientX - panStartX;
       offsetY = e.clientY - panStartY;
       updateLabelPositions();
@@ -367,18 +353,6 @@
       frame.classList.remove('grabbing');
     });
 
-    function showProgress(text, percent) {
-      progressContainer.style.display = 'block';
-      statusEl.textContent = `${text} (${percent}%)`;
-      progressBarFill.style.width = `${percent}%`;
-    }
-
-    function hideProgress() {
-      setTimeout(() => {
-        progressContainer.style.display = 'none';
-      }, 1000);
-    }
-
     function parseGPX(xmlText) {
       const parser = new DOMParser();
       const xml = parser.parseFromString(xmlText, "text/xml");
@@ -386,8 +360,6 @@
 
       trackPoints = [];
       let totalDist = 0;
-
-      showProgress("Tolker koordinater...", 35);
 
       trkpts.forEach((pt, index) => {
         const lat = parseFloat(pt.getAttribute("lat"));
@@ -407,11 +379,10 @@
       offsetY = 0;
 
       if (trackPoints.length > 0) {
-        showProgress("Henter fjelltopper i området...", 60);
+        statusEl.textContent = "Søker etter topper i kartdata...";
         fetchPeaks();
       } else {
-        showProgress("Feil: Ingen gyldige spor-punkter funnet.", 100);
-        hideProgress();
+        statusEl.textContent = "Ingen gyldige spor-punkter funnet i GPX.";
       }
     }
 
@@ -435,7 +406,6 @@
       let peaks = [];
 
       try {
-        showProgress("Søker i Kartverket sine stedsnavn...", 75);
         const url = `https://ws.geonorge.no/stedsnavn/v1/punkt?nordmin=${bMinLat}&nordmaks=${bMaxLat}&ostmin=${bMinLon}&ostmaks=${bMaxLon}&navneobjekttype=Fjell*&maxAntall=100`;
         const res = await fetch(url);
         if (res.ok) {
@@ -443,12 +413,11 @@
           peaks = parseKartverketGeonorge(json);
         }
       } catch (err) {
-        console.warn("Kartverket API feilet, prøver Overpass...", err);
+        console.warn("Kartverket API feilet, prøver Overpass fallback...", err);
       }
 
       if (peaks.length === 0) {
         try {
-          showProgress("Søker i OpenStreetMap database...", 85);
           const overpassQuery = `[out:json];node["natural"="peak"](${bMinLat},${bMinLon},${bMaxLat},${bMaxLon});out;`;
           const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`);
           if (res.ok) {
@@ -460,10 +429,8 @@
         }
       }
 
-      showProgress(`Prosesserer ${peaks.length} funnet(e) topper...`, 95);
+      statusEl.textContent = `Identifiserte ${peaks.length} potensielle topper. Genererer visning...`;
       render(peaks);
-      showProgress("Ferdig lastet!", 100);
-      hideProgress();
     }
 
     function parseKartverketGeonorge(data) {
@@ -603,7 +570,7 @@
       });
 
       detectedPeaks.push(peakData);
-      makeDraggable(labelContainer, peakData);
+      makePeakDraggable(labelContainer, peakData);
     }
 
     function updateLabelPositions() {
@@ -614,7 +581,7 @@
       });
     }
 
-    function makeDraggable(element, data) {
+    function makePeakDraggable(element, data) {
       let isDragging = false;
       let startMouseX = 0;
       let startMouseY = 0;
@@ -649,6 +616,7 @@
       });
     }
 
+    // Kartfliseberegning
     function lon2tile(lon, zoom) { return (lon + 180) / 360 * Math.pow(2, zoom); }
     function lat2tile(lat, zoom) { return (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom); }
 
@@ -681,11 +649,7 @@
       const minY = Math.floor(lat2tile(maxLat, zoom));
       const maxY = Math.floor(lat2tile(minLat, zoom));
 
-      const val = parseFloat(mapOpacity.value);
-      
-      // Svarthvitt pluss dynamisk kontrast-booster basert på slider
-      ctx.globalAlpha = Math.min(1.0, val);
-      ctx.filter = `grayscale(100%) contrast(${val * 150}%)`;
+      ctx.globalAlpha = parseFloat(mapOpacity.value);
 
       for (let x = minX - 1; x <= maxX + 1; x++) {
         for (let y = minY - 1; y <= maxY + 1; y++) {
@@ -694,7 +658,8 @@
           if (!loadedMapTiles.has(tileKey)) {
             const img = new Image();
             img.crossOrigin = "Anonymous";
-            img.src = `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png?key=${CARTO_KEY}`;
+            // Minimalistisk gråtonet bakgrunnskart (CartoDB Positron)
+            img.src = `https://a.basemaps.cartocdn.com/light_nolabels/${zoom}/${x}/${y}.png`;
             img.onload = () => redrawCanvasAndLines();
             loadedMapTiles.set(tileKey, img);
           }
@@ -714,11 +679,11 @@
         }
       }
 
-      ctx.filter = "none";
       ctx.globalAlpha = 1.0;
 
+      // Attribusjon for CARTO
       ctx.font = "8px sans-serif";
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
       ctx.textAlign = "right";
       ctx.fillText("© CARTO © OpenStreetMap", canvas.width - 10, canvas.height - 10);
     }
@@ -728,8 +693,10 @@
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      // 0. Tegn Kartbakgrunn hvis aktivert
       drawMapTiles();
 
+      // 1. Tegn sporet
       ctx.beginPath();
       ctx.strokeStyle = "#000000";
       ctx.lineWidth = 2;
@@ -740,6 +707,7 @@
       });
       ctx.stroke();
 
+      // 2. Tegn toppmarkeringer og stiplede linjer
       detectedPeaks.forEach(p => {
         const anchor = toCanvasCoords(p.lat, p.lon);
         
@@ -763,7 +731,10 @@
         ctx.setLineDash([]);
       });
 
+      // 3. Tegn Høydeprofil
       drawElevationProfile();
+
+      // 4. Tegn start-koordinat nederst i rammen
       drawStartCoordinates();
     }
 
@@ -861,18 +832,23 @@
       exportCanvas.height = canvas.height;
       const exportCtx = exportCanvas.getContext('2d');
 
+      // Hvit bakgrunn som utgangspunkt
       exportCtx.fillStyle = "#ffffff";
       exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+      // Tegn over canvas-innholdet
       exportCtx.drawImage(canvas, 0, 0);
 
+      // Render Tittel hvis synlig (plassert i henhold til flyttet posisjon)
       if (titleContainer.style.display !== 'none') {
-        const titleText = document.getElementById('title-input').value;
+        const titleText = titleInput.value;
         exportCtx.font = "800 18px -apple-system, BlinkMacSystemFont, sans-serif";
         exportCtx.fillStyle = "#000000";
         exportCtx.textAlign = "center";
-        exportCtx.fillText(titleText, canvas.width / 2, 42);
+        exportCtx.fillText(titleText, titlePos.x, titlePos.y + 16);
       }
 
+      // Render HTML-etikettene direkte over i bildet
       detectedPeaks.forEach(p => {
         const anchor = toCanvasCoords(p.lat, p.lon);
         const text = p.element.querySelector('.draggable-label').textContent;
@@ -882,6 +858,7 @@
         exportCtx.fillText(text, anchor.x + p.relX + 4, anchor.y + p.relY + 12);
       });
 
+      // Render Ramme dersom aktivert
       if (toggleBorder.checked) {
         const bw = parseInt(borderWidth.value);
         exportCtx.strokeStyle = "#000000";
@@ -889,12 +866,15 @@
         exportCtx.strokeRect(0, 0, exportCanvas.width, exportCanvas.height);
       }
 
+      // Hvis invertert, inverter det ferdige eksporterte bildet
       if (toggleInvert.checked) {
         const finalCanvas = document.createElement('canvas');
         finalCanvas.width = canvas.width;
         finalCanvas.height = canvas.height;
-        finalCanvas.getContext('2d').filter = "invert(1) hue-rotate(180deg)";
-        finalCanvas.getContext('2d').drawImage(exportCanvas, 0, 0);
+        const finalCtx = finalCanvas.getContext('2d');
+        
+        finalCtx.filter = "invert(1) hue-rotate(180deg)";
+        finalCtx.drawImage(exportCanvas, 0, 0);
 
         const link = document.createElement('a');
         link.download = 'gpx-spor.png';
