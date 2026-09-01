@@ -60,8 +60,9 @@
       cursor: pointer;
     }
 
-    button.active {
-      background: #007bff;
+    /* Spesialfarge for Flytt spor-knappen når den er aktiv */
+    button#toggle-pan-btn.active {
+      background: #28a745;
       color: #fff;
     }
 
@@ -70,8 +71,8 @@
       color: #fff;
     }
 
-    body:not(.inverted) button.active {
-      background: #0056b3;
+    body:not(.inverted) button#toggle-pan-btn.active {
+      background: #218838;
       color: #fff;
     }
 
@@ -79,18 +80,18 @@
       opacity: 0.9;
     }
 
-    /* Progresjonsbar */
+    /* Progresjonsbar-styling */
     #progress-container {
       width: 650px;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
       display: none;
     }
 
     #progress-bar-bg {
       width: 100%;
-      height: 6px;
+      height: 8px;
       background: #333;
-      border-radius: 3px;
+      border-radius: 4px;
       overflow: hidden;
     }
 
@@ -106,10 +107,10 @@
     }
 
     #status {
-      font-weight: 500;
+      font-weight: 600;
       font-size: 12px;
       color: #aaa;
-      margin-top: 4px;
+      margin-top: 5px;
       text-align: center;
     }
 
@@ -151,7 +152,6 @@
       z-index: 1;
     }
 
-    /* Tittel-element */
     #title-container {
       position: absolute;
       top: 25px;
@@ -181,7 +181,6 @@
       border-color: #ccc;
     }
 
-    /* Interaktive etiketter */
     .label-container {
       position: absolute;
       z-index: 10;
@@ -224,11 +223,12 @@
   <div class="controls">
     <input type="file" id="gpx-input" accept=".gpx">
     
+    <!-- Knapp for å slå av/på flytting/panorering for å spare ressurser -->
     <button id="toggle-pan-btn">Flytt spor: AV</button>
 
     <div class="control-group">
       <label><input type="checkbox" id="toggle-map"> Kart</label>
-      <input type="range" id="map-opacity" min="0.1" max="2.0" step="0.1" value="0.8" style="width:55px;" title="Kartintensitet">
+      <input type="range" id="map-opacity" min="0.1" max="3.0" step="0.1" value="1.0" style="width:60px;" title="Kartintensitet">
     </div>
 
     <div class="control-group">
@@ -243,11 +243,12 @@
     <button id="download-btn">Last ned bilde</button>
   </div>
 
+  <!-- Synlig progresjonsbar under kontrollene -->
   <div id="progress-container">
     <div id="progress-bar-bg">
       <div id="progress-bar-fill"></div>
     </div>
-    <div id="status">Last opp en GPX-fil</div>
+    <div id="status">Klar til å laste opp GPX-fil...</div>
   </div>
 
   <div id="frame" class="inverted">
@@ -290,12 +291,11 @@
 
     const CARTO_KEY = "cb1_2o3a_1_671194bbedbad28841272141";
 
-    // Event Listeners
     document.getElementById('gpx-input').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
-      showProgress("Leser GPX-fil...", 10);
+      showProgress("Leser inn GPX-fil...", 15);
 
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -310,6 +310,7 @@
       titleContainer.style.display = 'none';
     });
 
+    // Toggle for om man ønsker å flytte sporet eller ikke
     togglePanBtn.addEventListener('click', () => {
       canPanTrack = !canPanTrack;
       if (canPanTrack) {
@@ -342,9 +343,9 @@
     toggleMap.addEventListener('change', () => redrawCanvasAndLines());
     mapOpacity.addEventListener('input', () => redrawCanvasAndLines());
 
-    // Panorering styrt av toggle-knapp
+    // Panorering kjøres KUN dersom canPanTrack er TRUE
     frame.addEventListener('mousedown', (e) => {
-      if (!canPanTrack) return;
+      if (!canPanTrack) return; 
       if (e.target.closest('.label-container') || e.target.closest('#title-container')) return;
       
       isPanning = true;
@@ -368,14 +369,14 @@
 
     function showProgress(text, percent) {
       progressContainer.style.display = 'block';
-      statusEl.textContent = text;
+      statusEl.textContent = `${text} (${percent}%)`;
       progressBarFill.style.width = `${percent}%`;
     }
 
     function hideProgress() {
       setTimeout(() => {
         progressContainer.style.display = 'none';
-      }, 800);
+      }, 1000);
     }
 
     function parseGPX(xmlText) {
@@ -386,7 +387,7 @@
       trackPoints = [];
       let totalDist = 0;
 
-      showProgress("Tolker spor-koordinater...", 30);
+      showProgress("Tolker koordinater...", 35);
 
       trkpts.forEach((pt, index) => {
         const lat = parseFloat(pt.getAttribute("lat"));
@@ -406,7 +407,7 @@
       offsetY = 0;
 
       if (trackPoints.length > 0) {
-        showProgress("Søker etter fjelltopper i kartdata...", 50);
+        showProgress("Henter fjelltopper i området...", 60);
         fetchPeaks();
       } else {
         showProgress("Feil: Ingen gyldige spor-punkter funnet.", 100);
@@ -434,7 +435,7 @@
       let peaks = [];
 
       try {
-        showProgress("Henter fjellstedsnavn fra Kartverket...", 70);
+        showProgress("Søker i Kartverket sine stedsnavn...", 75);
         const url = `https://ws.geonorge.no/stedsnavn/v1/punkt?nordmin=${bMinLat}&nordmaks=${bMaxLat}&ostmin=${bMinLon}&ostmaks=${bMaxLon}&navneobjekttype=Fjell*&maxAntall=100`;
         const res = await fetch(url);
         if (res.ok) {
@@ -442,12 +443,12 @@
           peaks = parseKartverketGeonorge(json);
         }
       } catch (err) {
-        console.warn("Kartverket API feilet, prøver Overpass fallback...", err);
+        console.warn("Kartverket API feilet, prøver Overpass...", err);
       }
 
       if (peaks.length === 0) {
         try {
-          showProgress("Prøver Overpass API...", 85);
+          showProgress("Søker i OpenStreetMap database...", 85);
           const overpassQuery = `[out:json];node["natural"="peak"](${bMinLat},${bMinLon},${bMaxLat},${bMaxLon});out;`;
           const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`);
           if (res.ok) {
@@ -459,9 +460,9 @@
         }
       }
 
-      showProgress(`Fant ${peaks.length} topper. Genererer grafikk...`, 95);
+      showProgress(`Prosesserer ${peaks.length} funnet(e) topper...`, 95);
       render(peaks);
-      showProgress("Fullført!", 100);
+      showProgress("Ferdig lastet!", 100);
       hideProgress();
     }
 
@@ -680,12 +681,11 @@
       const minY = Math.floor(lat2tile(maxLat, zoom));
       const maxY = Math.floor(lat2tile(minLat, zoom));
 
-      const opacityVal = parseFloat(mapOpacity.value);
-      ctx.globalAlpha = Math.min(1.0, opacityVal);
-
-      // Svarthvitt kart med dynamisk kontrast boost basert på slider
-      const contrastVal = Math.max(100, opacityVal * 120);
-      ctx.filter = `grayscale(100%) contrast(${contrastVal}%)`;
+      const val = parseFloat(mapOpacity.value);
+      
+      // Svarthvitt pluss dynamisk kontrast-booster basert på slider
+      ctx.globalAlpha = Math.min(1.0, val);
+      ctx.filter = `grayscale(100%) contrast(${val * 150}%)`;
 
       for (let x = minX - 1; x <= maxX + 1; x++) {
         for (let y = minY - 1; y <= maxY + 1; y++) {
@@ -717,7 +717,6 @@
       ctx.filter = "none";
       ctx.globalAlpha = 1.0;
 
-      // Attribusjon
       ctx.font = "8px sans-serif";
       ctx.fillStyle = "rgba(0,0,0,0.5)";
       ctx.textAlign = "right";
@@ -729,10 +728,8 @@
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 0. Tegn Svarthvitt Kart
       drawMapTiles();
 
-      // 1. Tegn sporet
       ctx.beginPath();
       ctx.strokeStyle = "#000000";
       ctx.lineWidth = 2;
@@ -743,7 +740,6 @@
       });
       ctx.stroke();
 
-      // 2. Tegn toppmarkeringer og linjer
       detectedPeaks.forEach(p => {
         const anchor = toCanvasCoords(p.lat, p.lon);
         
@@ -767,10 +763,7 @@
         ctx.setLineDash([]);
       });
 
-      // 3. Tegn Høydeprofil
       drawElevationProfile();
-
-      // 4. Tegn start-koordinater
       drawStartCoordinates();
     }
 
@@ -900,10 +893,8 @@
         const finalCanvas = document.createElement('canvas');
         finalCanvas.width = canvas.width;
         finalCanvas.height = canvas.height;
-        const finalCtx = finalCanvas.getContext('2d');
-        
-        finalCtx.filter = "invert(1) hue-rotate(180deg)";
-        finalCtx.drawImage(exportCanvas, 0, 0);
+        finalCanvas.getContext('2d').filter = "invert(1) hue-rotate(180deg)";
+        finalCanvas.getContext('2d').drawImage(exportCanvas, 0, 0);
 
         const link = document.createElement('a');
         link.download = 'gpx-spor.png';
