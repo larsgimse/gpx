@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPX Visualizer - Komplett Alt-i-Ett Fil</title>
+  <style>
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #111111;
+      --border-color: #cccccc;
+      --control-bg: #f5f5f5;
+    }
+
+    body.inverted {
+      --bg-color: #111111;
+      --text-color: #ffffff;
+      --border-color: #444444;
+      --control-bg: #222222;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      gap: 20px;
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      background: var(--control-bg);
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      max-width: 950px;
+      font-size: 13px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .color-palette {
+      display: flex;
+      gap: 4px;
+    }
+
+    .color-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      box-shadow: 0 0 2px rgba(0,0,0,0.3);
+    }
+
+    .color-dot.active {
+      border-color: var(--text-color);
+      transform: scale(1.15);
+    }
+
+    button, select, input[type="file"] {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-color);
+      color: var(--text-color);
+      cursor: pointer;
+    }
+
+    .zoom-btn {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    #frame {
+      position: relative;
+      width: 650px;
+      height: 650px;
+      background-color: var(--bg-color);
+      overflow: hidden;
+      user-select: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      cursor: grab;
+      border: 0px solid transparent;
+    }
+
+    #frame.grabbing { cursor: grabbing; }
+
+    #trackCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    #labels-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .draggable-element {
+      position: absolute;
+      pointer-events: auto;
+      cursor: move;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .draggable-element .delete-btn {
+      display: none;
+      color: #ff4d4d;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 2px;
+    }
+
+    .draggable-element:hover .delete-btn { display: inline; }
+
+    #title-container {
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    #title-input {
+      background: transparent;
+      border: none;
+      font-size: 18px;
+      font-weight: 800;
+      text-align: center;
+      outline: none;
+      letter-spacing: 1px;
+      font-family: inherit;
+    }
+
+    #info-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+      background: var(--bg-color);
+      padding: 24px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      max-width: 80%;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    #info-overlay h2 { margin-bottom: 12px; font-size: 16px; }
+    #info-overlay ul { margin-left: 18px; margin-bottom: 12px; }
+    #info-overlay .note { font-size: 11px; opacity: 0.7; }
+
+    #status-container {
+      width: 100%;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 4px;
+      background: var(--border-color);
+      border-radius: 2px;
+      overflow: hidden;
+      display: none;
+      margin-top: 4px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: #0077b6;
+      width: 0%;
+      transition: width 0.1s;
+    }
+
+    .draggable-label {
+      font-size: 11px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .checkbox-group {
+      width: 100%;
+      justify-content: center;
+      margin-top: 6px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 8px;
+    }
+  </style>
+</head>
+<body class="inverted">
+
+  <div class="controls">
+    <input type="file" id="gpx-input" accept=".gpx">
+    
+    <div class="control-group">
+      <label><input type="checkbox" id="toggle-map"> <span id="lbl-map">Bakgrunnskart</span></label>
+      <select id="map-source">
+        <option value="carto_voyager">CARTO Voyager (Detaljert & Myk)</option>
+        <option value="carto_positron">CARTO Positron (Lys & Minimalistisk)</option>
+        <option value="carto_dark">CARTO Dark Matter</option>
+        <option value="kartverket_topo">Kartverket Topo (Tette koter)</option>
+        <option value="kartverket_gray">Kartverket (Gråtone)</option>
+        <option value="opentopo">OpenTopoMap (Koter & Terreng)</option>
+        <option value="osm">OpenStreetMap</option>
+        <option value="esri_sat">Esri Satellitt</option>
+      </select>
+      <input type="range" id="map-opacity" min="0.1" max="1" step="0.05" value="0.4" style="width:50px;" title="Kartintensitet">
+    </div>
+
+    <div class="control-group">
+      <span id="lbl-track-color">Sporfarge:</span>
+      <div class="color-palette" id="track-color-palette"></div>
+    </div>
+
+    <div class="control-group">
+      <span id="lbl-text-color">Tekst- & rammefarge:</span>
+      <div class="color-palette" id="text-color-palette"></div>
+    </div>
+
+    <div class="control-group">
+      <span id="lbl-zoom">Zoom:</span>
+      <button type="button" class="zoom-btn" id="zoom-out">−</button>
+      <button type="button" class="zoom-btn" id="zoom-in">+</button>
+    </div>
+
+    <div class="control-group">
+      <label><input type="checkbox" id="toggle-border"> <span id="lbl-border">Ramme</span></label>
+      <input type="range" id="border-width" min="1" max="10" value="2" style="width:50px;" title="Rammetykkelse">
+    </div>
+
+    <div class="control-group">
+      <label id="lbl-line-style">Linjestil:</label>
+      <select id="line-style">
+        <option value="corner" id="opt-corner">Rett vinkel</option>
+        <option value="arc" id="opt-arc">Tilpasset bue</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label><input type="checkbox" id="toggle-invert" checked> <span id="lbl-invert">Inverter</span></label>
+    </div>
+
+    <button type="button" id="lang-toggle-btn">🇬🇧 EN</button>
+    <button id="download-btn">Last ned bilde</button>
+
+    <div class="control-group checkbox-group">
+      <label><input type="checkbox" class="data-field-toggle" data-field="date"> <span id="chk-date">Dato</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="dist"> <span id="chk-dist">Lengde totalt</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="distToPeak"> <span id="chk-distToPeak">Lengde til topp</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="elevationGain"> <span id="chk-elevationGain">Total stigning</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="duration"> <span id="chk-duration">Tid totalt</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="startTime"> <span id="chk-startTime">Start</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="endTime"> <span id="chk-endTime">Slutt</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="timeToPeak"> <span id="chk-timeToPeak">Tid til topp</span></label>
+    </div>
+
+    <div id="status-container">
+      <div id="status">Last opp en GPX-fil</div>
+      <div class="progress-bar-bg" id="progress-bg">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="frame" class="inverted">
+    <div id="info-overlay">
+      <h2 id="info-title">GPX-Visning & Kartgenerator</h2>
+      <ul>
+        <li id="info-li1"><b>Last opp GPX:</b> Genererer automatisk sporlinje, fjelltopper, lengde og høydeprofil.</li>
+        <li id="info-li2"><b>Flyttbare elementer:</b> Klikk og dra tittelen, høydekurven, koordinater og toppetiketter fritt. Klikk på <b>×</b> for å slette enkelt-elementer.</li>
+        <li id="info-li3"><b>Bakgrunnskart:</b> Velg mellom CARTO (Voyager/Positron/Dark), Kartverket, OpenTopoMap og Satellitt.</li>
+        <li id="info-li4"><b>Tilpassing:</b> Juster zoom, panorering, rammestørrelse, og endre tema, sporfarge eller tekstfarge uavhengig av hverandre.</li>
+      </ul>
+      <p class="note" id="info-note">Merk: Kartflisene hentes direkte fra eksterne kartservere. Ved zooming kan det ta noe tid før nye fliser er ferdig lastet ned.</p>
+    </div>
+
+    <canvas id="trackCanvas" width="650" height="650"></canvas>
+    
+    <div id="labels-layer">
+      <div id="title-container" class="draggable-element">
+        <input type="text" id="title-input" value="LEGG TIL EGEN TITTEL">
+        <span class="delete-btn" title="Fjern tittel">×</span>
+      </div>
+
+      <div id="elevation-container" class="draggable-element" style="display: none;">
+        <canvas id="elevationCanvas" width="292" height="60"></canvas>
+        <span class="delete-btn" style="position: absolute; right: -12px; top: 0;" title="Fjern høydekurve">×</span>
+      </div>
+
+      <div id="coord-container" class="draggable-element" style="display: none;">
+        <span class="draggable-label" id="coord-text"></span>
+        <span class="delete-btn" title="Fjern koordinat">×</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. CONFIG & GLOBALE KONSTANTER
+    // ==========================================
+    const paletteColors = [
+      "#0077b6", "#d90429", "#2a9d8f", "#f4a261", "#e76f51",
+      "#80ed99", "#ffb703", "#a2d2ff", "#ffffff", "#000000"
+    ];
+
+    const translations = {
+      no: {
+        flag: "🇬🇧 EN",
+        statusInitial: "Last opp en GPX-fil",
+        statusReading: "Leser fil...",
+        statusParsing: "Tolker GPX-data...",
+        statusFetchingPeaks: "Søker etter fjelltopper i nærheten...",
+        statusDone: "Klar!",
+        statusLoadingTiles: (loaded, total) => `Laster kartfliser (${loaded}/${total})...`,
+        lblMap: "Bakgrunnskart",
+        lblTrackColor: "Sporfarge:",
+        lblTextColor: "Tekst- & rammefarge:",
+        lblZoom: "Zoom:",
+        lblBorder: "Ramme",
+        lblLineStyle: "Linjestil:",
+        optCorner: "Rett vinkel",
+        optArc: "Tilpasset bue",
+        lblInvert: "Inverter",
+        downloadBtn: "Last ned bilde",
+        chkDate: "Dato",
+        chkDist: "Lengde totalt",
+        chkDistToPeak: "Lengde til topp",
+        chkElevationGain: "Total stigning",
+        chkDuration: "Tid totalt",
+        chkStartTime: "Start",
+        chkEndTime: "Slutt",
+        chkTimeToPeak: "Tid til topp",
+        infoTitle: "GPX-Visning & Kartgenerator",
+        infoLi1: "<b>Last opp GPX:</b> Genererer automatisk sporlinje, fjelltopper, lengde og høydeprofil.",
+        infoLi2: "<b>Flyttbare elementer:</b> Klikk og dra tittelen, høydekurven, koordinater og toppetiketter fritt. Klikk på <b>×</b> for å slette enkelt-elementer.",
+        infoLi3: "<b>Bakgrunnskart:</b> Velg mellom CARTO (Voyager/Positron/Dark), Kartverket, OpenTopoMap og Satellitt.",
+        infoLi4: "<b>Tilpassing:</b> Juster zoom, panorering, rammestørrelse, og endre tema, sporfarge eller tekstfarge uavhengig av hverandre.",
+        infoNote: "Merk: Kartflisene hentes direkte fra eksterne kartservere. Ved zooming kan det ta noe tid før nye fliser er ferdig lastet ned.",
+        maxEle: "Maks:",
+        defaultTitle: "LEGG TIL EGEN TITTEL",
+        alertGpx: "Last opp en GPX-fil først."
+      },
+      en: {
+        flag: "🇳🇴 NO",
+        statusInitial: "Upload a GPX file",
+        statusReading: "Reading file...",
+        statusParsing: "Parsing GPX data...",
+        statusFetchingPeaks: "Searching for nearby peaks...",
+        statusDone: "Ready!",
+        statusLoadingTiles: (loaded, total) => `Loading map tiles (${loaded}/${total})...`,
+        lblMap: "Background Map",
+        lblTrackColor: "Track Color:",
+        lblTextColor: "Text & Border Color:",
+        lblZoom: "Zoom:",
+        lblBorder: "Border",
+        lblLineStyle: "Line Style:",
+        optCorner: "Right angle",
+        optArc: "Custom arc",
+        lblInvert: "Invert",
+        downloadBtn: "Download Image",
+        chkDate: "Date",
+        chkDist: "Total Distance",
+        chkDistToPeak: "Distance to Peak",
+        chkElevationGain: "Total Elevation Gain",
+        chkDuration: "Total Duration",
+        chkStartTime: "Start Time",
+        chkEndTime: "End Time",
+        chkTimeToPeak: "Time to Peak",
+        infoTitle: "GPX Viewer & Map Generator",
+        infoLi1: "<b>Upload GPX:</b> Automatically generates trackline, peaks, distance, and elevation profile.",
+        infoLi2: "<b>Draggable elements:</b> Click and drag the title, elevation graph, coordinates, and peak labels freely. Click <b>×</b> to delete individual items.",
+        infoLi3: "<b>Background Maps:</b> Choose between CARTO (Voyager/Positron/Dark), Kartverket, OpenTopoMap, and Satellite.",
+        infoLi4: "<b>Customization:</b> Adjust zoom, pan, border size, and change theme, track color, or text color independently.",
+        infoNote: "Note: Map tiles are fetched directly from external servers. Downloading new tiles during zooming may take a moment.",
+        maxEle: "Max:",
+        defaultTitle: "ADD YOUR TITLE HERE",
+        alertGpx: "Please upload a GPX file first."
+      }
+    };
+
+    let trackPoints = [];
+    let gpxStats = {};
+    let detectedPeaks = [];
+
+    function getDisplayColor(hexColor) {
+      const isInverted = document.body.classList.contains('inverted');
+      if (hexColor.toLowerCase() === '#ffffff') return isInverted ? '#ffffff' : '#000000';
+      if (hexColor.toLowerCase() === '#000000') return isInverted ? '#000000' : '#ffffff';
+      return hexColor;
+    }
+
+    function haversineDistance(coords1, coords2) {
+      function toRad(x) { return x * Math.PI / 180; }
+      const R = 6371;
+      const dLat = toRad(coords2.lat - coords1.lat);
+      const dLon = toRad(coords2.lon - coords1.lon);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(coords1.lat)) * Math.cos(toRad(coords2.lat)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // ==========================================
+    // 2. GPX PARSER
+    // ==========================================
+    function parseGPX(xmlText) {
+      showProgress(translations[currentLang].statusParsing, 20);
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+      const trkpts = xmlDoc.getElementsByTagName("trkpt");
+      
+      trackPoints = [];
+      let totalDist = 0;
+      let eleGain = 0;
+
+      for (let i = 0; i < trkpts.length; i++) {
+        const pt = trkpts[i];
+        const lat = parseFloat(pt.getAttribute("lat"));
+        const lon = parseFloat(pt.getAttribute("lon"));
+        const eleNode = pt.getElementsByTagName("ele")[0];
+        const ele = eleNode ? parseFloat(eleNode.textContent) : 0;
+        const timeNode = pt.getElementsByTagName("time")[0];
+        const time = timeNode ? new Date(timeNode.textContent) : null;
+
+        if (i > 0) {
+          const prev = trackPoints[i - 1];
+          const dist = haversineDistance(prev, { lat, lon });
+          totalDist += dist;
+          if (ele > prev.ele) eleGain += (ele - prev.ele);
+        }
+
+        trackPoints.push({ lat, lon, ele, time, dist: totalDist });
+      }
+
+      if (trackPoints.length === 0) {
+        hideProgress("Feil: Ingen sporpunkter funnet i GPX-filen.");
+        return;
+      }
+
+      calculateStats(totalDist, eleGain);
+      fetchNearbyPeaks();
+    }
+
+    function calculateStats(totalDist, eleGain) {
+      const startTime = trackPoints[0].time;
+      const endTime = trackPoints[trackPoints.length - 1].time;
+      
+      let maxElePt = trackPoints[0];
+      trackPoints.forEach(p => { if (p.ele > maxElePt.ele) maxElePt = p; });
+
+      gpxStats = {
+        date: startTime ? startTime.toLocaleDateString('no-NO') : '',
+        dist: `${totalDist.toFixed(1)} km`,
+        distToPeak: `${maxElePt.dist.toFixed(1)} km`,
+        elevationGain: `${Math.round(eleGain)} m`,
+        duration: (startTime && endTime) ? formatDuration((endTime - startTime) / 1000) : '',
+        startTime: startTime ? startTime.toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' }) : '',
+        endTime: endTime ? endTime.toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' }) : '',
+        timeToPeak: (startTime && maxElePt.time) ? formatDuration((maxElePt.time - startTime) / 1000) : ''
+      };
+
+      coordText.textContent = `${maxElePt.lat.toFixed(4)}°N, ${maxElePt.lon.toFixed(4)}°E`;
+      coordContainer.style.display = 'flex';
+      elevationContainer.style.display = 'flex';
+    }
+
+    function formatDuration(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      return h > 0 ? `${h}t ${m}m` : `${m}m`;
+    }
+
+    function recalculateStats() {
+      if (trackPoints.length > 0) {
+        let totalDist = trackPoints[trackPoints.length - 1].dist;
+        let eleGain = 0;
+        for (let i = 1; i < trackPoints.length; i++) {
+          if (trackPoints[i].ele > trackPoints[i-1].ele) eleGain += (trackPoints[i].ele - trackPoints[i-1].ele);
+        }
+        calculateStats(totalDist, eleGain);
+      }
+    }
+
+    // ==========================================
+    // 3. PEAKS (OVERPASS API SØK)
+    // ==========================================
+    function fetchNearbyPeaks() {
+      showProgress(translations[currentLang].statusFetchingPeaks, 50);
+      let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+      trackPoints.forEach(p => {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lon < minLon) minLon = p.lon;
+        if (p.lon > maxLon) maxLon = p.lon;
+      });
+
+      const bbox = `${minLat - 0.02},${minLon - 0.02},${maxLat + 0.02},${maxLon + 0.02}`;
+      const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node["natural"="peak"](${bbox});out;`;
+
+      fetch(overpassUrl)
+        .then(res => res.json())
+        .then(data => {
+          clearPeaks();
+          if (data.elements) {
+            data.elements.forEach(node => {
+              if (node.tags && node.tags.name) {
+                const lat = node.lat;
+                const lon = node.lon;
+                let minDist = Infinity;
+                trackPoints.forEach(pt => {
+                  const d = haversineDistance(pt, { lat, lon });
+                  if (d < minDist) minDist = d;
+                });
+
+                if (minDist < 1.5) {
+                  createPeakLabel(node.tags.name, lat, lon, node.tags.ele);
+                }
+              }
+            });
+          }
+          hideProgress(translations[currentLang].statusDone);
+          redrawCanvasAndLines();
+          drawElevationProfile();
+        })
+        .catch(err => {
+          console.warn("Kunne ikke hente fjelltopper:", err);
+          hideProgress(translations[currentLang].statusDone);
+          redrawCanvasAndLines();
+          drawElevationProfile();
+        });
+    }
+
+    function clearPeaks() {
+      detectedPeaks.forEach(p => p.element.remove());
+      detectedPeaks = [];
+    }
+
+    function createPeakLabel(name, lat, lon, ele) {
+      const peakEl = document.createElement('div');
+      peakEl.className = 'draggable-element';
+      const renderTextColor = getDisplayColor(selectedTextColor);
+      const text = ele ? `${name.toUpperCase()} ${ele}m` : name.toUpperCase();
+      
+      peakEl.innerHTML = `<span class="draggable-label" style="color: ${renderTextColor};">${text}</span><span class="delete-btn" title="Fjern">×</span>`;
+      labelsLayer.appendChild(peakEl);
+
+      const peakObj = { name, lat, lon, element: peakEl, relX: 30, relY: -30 };
+      detectedPeaks.push(peakObj);
+
+      setupDraggablePeak(peakObj);
+      peakEl.querySelector('.delete-btn').addEventListener('click', () => {
+        peakEl.remove();
+        detectedPeaks = detectedPeaks.filter(p => p !== peakObj);
+        redrawCanvasAndLines();
+      });
+    }
+
+    function setupDraggablePeak(peakObj) {
+      let isDragging = false, startMouseX = 0, startMouseY = 0, startRelX = 0, startRelY = 0;
+      peakObj.element.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('delete-btn')) return;
+        isDragging = true;
+        startMouseX = e.clientX; startMouseY = e.clientY;
+        startRelX = peakObj.relX; startRelY = peakObj.relY;
+        e.stopPropagation();
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        peakObj.relX = startRelX + (e.clientX - startMouseX);
+        peakObj.relY = startRelY + (e.clientY - startMouseY);
+        updateLabelPositions();
+        redrawCanvasAndLines();
+      });
+      window.addEventListener('mouseup', () => { isDragging = false; });
+    }
+
+    // ==========================================
+    // 4. MAP TILES & RENDERING LOGIKK
+    // ==========================================
+    let loadedMapTiles = new Map();
+    let mapRenderTimeout = null;
+
+    function lon2tile(lon, zoom) { return (lon + 180) / 360 * Math.pow(2, zoom); }
+    function lat2tile(lat, zoom) { return (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom); }
+
+    function getTileUrl(source, zoom, x, y) {
+      const sub = ['a', 'b', 'c', 'd'][(x + y) % 4];
+      switch(source) {
+        case 'carto_voyager': return `https://${sub}.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
+        case 'carto_positron': return `https://${sub}.basemaps.cartocdn.com/light_nolabels/${zoom}/${x}/${y}.png`;
+        case 'carto_dark': return `https://${sub}.basemaps.cartocdn.com/dark_nolabels/${zoom}/${x}/${y}.png`;
+        case 'kartverket_topo': return `https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/${zoom}/${y}/${x}.png`;
+        case 'kartverket_gray': return `https://cache.kartverket.no/v1/wmts/1.0.0/topograstone/default/webmercator/${zoom}/${y}/${x}.png`;
+        case 'opentopo': return `https://tile.opentopomap.org/${zoom}/${x}/${y}.png`;
+        case 'osm': return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+        case 'esri_sat': return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${x}`;
+        default: return `https://${sub}.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
+      }
+    }
+
+    function getTransformationParams() {
+      let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+      trackPoints.forEach(p => {
+        if (p.lat < minLat) minLat = p.lat; if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lon < minLon) minLon = p.lon; if (p.lon > maxLon) maxLon = p.lon;
+      });
+      const latSpan = maxLat - minLat || 0.005, lonSpan = maxLon - minLon || 0.005;
+      const cosLat = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+      const maxSpan = Math.max(latSpan, lonSpan * cosLat);
+      const scale = ((canvas.width * 0.52) / maxSpan) * userZoom;
+      const centerLat = (minLat + maxLat) / 2, centerLon = (minLon + maxLon) / 2;
+      return { scale, centerLat, centerLon, cosLat };
+    }
+
+    function toCanvasCoords(lat, lon) {
+      const { scale, centerLat, centerLon, cosLat } = getTransformationParams();
+      return { 
+        x: canvas.width / 2 + (lon - centerLon) * cosLat * scale + offsetX, 
+        y: (canvas.height / 2 - 10) - (lat - centerLat) * scale + offsetY 
+      };
+    }
+
+    function drawMapTiles() {
+      if (!toggleMap.checked || trackPoints.length === 0) return;
+      const { scale, centerLat, centerLon, cosLat } = getTransformationParams();
+      const zoom = Math.min(15, Math.max(8, Math.floor(12 + Math.log2(userZoom))));
+      const minX = Math.floor(lon2tile(centerLon - (canvas.width / (2 * scale * cosLat)), zoom));
+      const maxX = Math.floor(lon2tile(centerLon + (canvas.width / (2 * scale * cosLat)), zoom));
+      const minY = Math.floor(lat2tile(centerLat + (canvas.height / (2 * scale)), zoom));
+      const maxY = Math.floor(lat2tile(centerLat - (canvas.height / (2 * scale)), zoom));
+      
+      ctx.globalAlpha = parseFloat(mapOpacity.value);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      const selectedSource = mapSourceSelect.value;
+      ctx.filter = (selectedSource === 'kartverket_gray' || selectedSource === 'osm') ? 'grayscale(100%)' : 'none';
+      
+      const requiredKeys = [];
+      for (let x = minX - 1; x <= maxX + 1; x++) {
+        for (let y = minY - 1; y <= maxY + 1; y++) { 
+          requiredKeys.push({ zoom, x, y, key: `${selectedSource}/${zoom}/${x}/${y}` }); 
+        }
+      }
+      
+      let totalTilesNeeded = requiredKeys.length; 
+      let tilesLoaded = 0;
+      
+      requiredKeys.forEach(tile => {
+        const { x, y, key } = tile;
+        if (!loadedMapTiles.has(key)) {
+          const img = new Image(); 
+          img.crossOrigin = "Anonymous";
+          const tileData = { img, loaded: false, error: false };
+          loadedMapTiles.set(key, tileData);
+          img.onload = () => { tileData.loaded = true; debouncedRedraw(); };
+          img.onerror = () => { tileData.loaded = true; tileData.error = true; debouncedRedraw(); };
+          img.src = getTileUrl(selectedSource, zoom, x, y);
+        }
+        
+        const tileData = loadedMapTiles.get(key);
+        if (tileData && tileData.loaded) {
+          tilesLoaded++;
+          if (!tileData.error) {
+            const n = Math.pow(2, zoom);
+            const tileLon = x / n * 360 - 180;
+            const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
+            const tileLat = latRad * 180 / Math.PI;
+            const pos = toCanvasCoords(tileLat, tileLon);
+            const tileSize = (360 / n) * cosLat * scale;
+            ctx.drawImage(tileData.img, pos.x, pos.y, tileSize + 0.5, tileSize + 0.5);
+          }
+        }
+      });
+      
+      if (tilesLoaded < totalTilesNeeded) {
+        showProgress(translations[currentLang].statusLoadingTiles(tilesLoaded, totalTilesNeeded), Math.round((tilesLoaded / totalTilesNeeded) * 100));
+      } else { hideProgress(); }
+      
+      ctx.filter = 'none'; ctx.globalAlpha = 1.0;
+      ctx.font = "8px sans-serif"; ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.textAlign = "right";
+      ctx.fillText("© Kartverket / OpenTopoMap / OpenStreetMap / Esri / CARTO", canvas.width - 10, canvas.height - 10);
+    }
+
+    function debouncedRedraw() {
+      if (mapRenderTimeout) clearTimeout(mapRenderTimeout);
+      mapRenderTimeout = setTimeout(() => { redrawCanvasAndLines(); }, 30);
+    }
+
+    // ==========================================
+    // 5. APP-LOGIKK, EVENT LISTENERS & UI
+    // ==========================================
+    const canvas = document.getElementById('trackCanvas'); const ctx = canvas.getContext('2d');
+    const eleCanvas = document.getElementById('elevationCanvas'); const eleCtx = eleCanvas.getContext('2d');
+    const frame = document.getElementById('frame'); const infoOverlay = document.getElementById('info-overlay');
+    const labelsLayer = document.getElementById('labels-layer'); const statusEl = document.getElementById('status');
+    const progressBg = document.getElementById('progress-bg'); const progressFill = document.getElementById('progress-fill');
+    const titleContainer = document.getElementById('title-container'); const titleInput = document.getElementById('title-input');
+    const elevationContainer = document.getElementById('elevation-container'); const coordContainer = document.getElementById('coord-container');
+    const coordText = document.getElementById('coord-text');
+    const toggleMap = document.getElementById('toggle-map'); const mapSourceSelect = document.getElementById('map-source');
+    const mapOpacity = document.getElementById('map-opacity'); const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out'); const toggleBorder = document.getElementById('toggle-border');
+    const borderWidth = document.getElementById('border-width'); const lineStyleSelect = document.getElementById('line-style');
+    const toggleInvert = document.getElementById('toggle-invert'); const langBtn = document.getElementById('lang-toggle-btn');
+
+    let currentLang = "no", selectedTrackColor = "#0077b6", selectedTextColor = "#0077b6", customDataLabels = [];
+    let offsetX = 0, offsetY = 0, userZoom = 1, isPanning = false, panStartX = 0, panStartY = 0;
+
+    const trackPaletteContainer = document.getElementById('track-color-palette');
+    paletteColors.forEach((color, idx) => {
+      const dot = document.createElement('div');
+      dot.className = 'color-dot' + (idx === 0 ? ' active' : '');
+      dot.style.backgroundColor = color;
+      dot.addEventListener('click', () => {
+        trackPaletteContainer.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active'); selectedTrackColor = color;
+        redrawCanvasAndLines(); drawElevationProfile();
+      });
+      trackPaletteContainer.appendChild(dot);
+    });
+
+    const textPaletteContainer = document.getElementById('text-color-palette');
+    paletteColors.forEach((color, idx) => {
+      const dot = document.createElement('div');
+      dot.className = 'color-dot' + (idx === 0 ? ' active' : '');
+      dot.style.backgroundColor = color;
+      dot.addEventListener('click', () => {
+        textPaletteContainer.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active'); selectedTextColor = color; applyTextColor();
+      });
+      textPaletteContainer.appendChild(dot);
+    });
+
+    function applyTextColor() {
+      const renderColor = getDisplayColor(selectedTextColor);
+      titleInput.style.color = renderColor;
+      document.querySelectorAll('.draggable-label').forEach(el => el.style.color = renderColor);
+      updateFrameBorder(); drawElevationProfile();
+    }
+
+    function showProgress(text, percent) {
+      statusEl.textContent = text; progressBg.style.display = 'block';
+      progressFill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    }
+
+    function hideProgress(text = "") { 
+      if (text) statusEl.textContent = text; 
+      progressBg.style.display = 'none'; 
+      progressFill.style.width = '0%'; 
+    }
+
+    function autoExpandTitle() { titleInput.style.width = Math.max(titleInput.value.length + 2, 10) + 'ch'; }
+    titleInput.addEventListener('input', autoExpandTitle);
+
+    document.getElementById('gpx-input').addEventListener('change', (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      if (infoOverlay) infoOverlay.style.display = 'none';
+      showProgress(translations[currentLang].statusReading, 10);
+      const reader = new FileReader();
+      reader.onload = (event) => parseGPX(event.target.result); 
+      reader.readAsText(file);
+    });
+
+    document.getElementById('download-btn').addEventListener('click', downloadImage);
+    document.querySelectorAll('.draggable-element .delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); btn.parentElement.style.display = 'none'; });
+    });
+
+    toggleBorder.addEventListener('change', updateFrameBorder); borderWidth.addEventListener('input', updateFrameBorder);
+    lineStyleSelect.addEventListener('change', () => redrawCanvasAndLines());
+
+    function updateFrameBorder() {
+      const renderColor = getDisplayColor(selectedTextColor);
+      frame.style.border = toggleBorder.checked ? `${borderWidth.value}px solid ${renderColor}` : '0px solid transparent';
+    }
+
+    toggleInvert.addEventListener('change', () => {
+      document.body.classList.toggle('inverted', toggleInvert.checked);
+      frame.classList.toggle('inverted', toggleInvert.checked);
+      applyTextColor(); redrawCanvasAndLines(); drawElevationProfile();
+    });
+
+    toggleMap.addEventListener('change', () => redrawCanvasAndLines());
+    mapSourceSelect.addEventListener('change', () => { loadedMapTiles.clear(); redrawCanvasAndLines(); });
+    mapOpacity.addEventListener('input', () => redrawCanvasAndLines());
+
+    function changeZoom(delta) {
+      userZoom = Math.min(3, Math.max(0.5, userZoom + delta));
+      ctx.clearRect(0, 0, canvas.width, canvas.height); 
+      updateLabelPositions(); redrawCanvasAndLines();
+    }
+
+    zoomInBtn.addEventListener('click', () => changeZoom(0.2));
+    zoomOutBtn.addEventListener('click', () => changeZoom(-0.2));
+    frame.addEventListener('wheel', (e) => { e.preventDefault(); changeZoom(e.deltaY < 0 ? 0.1 : -0.1); });
+
+    setupDraggable(titleContainer); setupDraggable(elevationContainer); setupDraggable(coordContainer);
+
+    function setupDraggable(element) {
+      let isDragging = false, startMouseX = 0, startMouseY = 0, startPosX = 0, startPosY = 0;
+      element.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('delete-btn') || (e.target === document.activeElement && e.target.tagName === 'INPUT')) return;
+        isDragging = true; startMouseX = e.clientX; startMouseY = e.clientY;
+        const rect = element.getBoundingClientRect(); const frameRect = frame.getBoundingClientRect();
+        startPosX = rect.left - frameRect.left; startPosY = rect.top - frameRect.top;
+        element.style.transform = 'none'; element.style.left = `${startPosX}px`; element.style.top = `${startPosY}px`; element.style.bottom = 'auto';
+        e.stopPropagation();
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        element.style.left = `${startPosX + (e.clientX - startMouseX)}px`; element.style.top = `${startPosY + (e.clientY - startMouseY)}px`;
+      });
+      window.addEventListener('mouseup', () => { isDragging = false; });
+    }
+
+    frame.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.draggable-element')) return;
+      isPanning = true; panStartX = e.clientX - offsetX; panStartY = e.clientY - offsetY; frame.classList.add('grabbing');
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!isPanning) return; offsetX = e.clientX - panStartX; offsetY = e.clientY - panStartY;
+      updateLabelPositions(); redrawCanvasAndLines();
+    });
+    window.addEventListener('mouseup', () => { isPanning = false; frame.classList.remove('grabbing'); });
+
+    document.querySelectorAll('.data-field-toggle').forEach(chk => {
+      chk.addEventListener('change', (e) => {
+        const field = e.target.getAttribute('data-field');
+        if (e.target.checked) createCustomDataLabel(field, gpxStats[field] || '');
+        else removeCustomDataLabel(field);
+      });
+    });
+
+    function createCustomDataLabel(field, text) {
+      if (document.getElementById(`label-${field}`)) return;
+      const labelContainer = document.createElement('div');
+      labelContainer.className = 'draggable-element'; labelContainer.id = `label-${field}`;
+      const renderTextColor = getDisplayColor(selectedTextColor);
+      labelContainer.innerHTML = `<span class="draggable-label" style="color: ${renderTextColor};">${text}</span><span class="delete-btn" title="Slett">×</span>`;
+      labelContainer.style.left = `40px`; labelContainer.style.top = `${50 + customDataLabels.length * 28}px`;
+      labelsLayer.appendChild(labelContainer);
+      customDataLabels.push({ id: field, element: labelContainer });
+      setupDraggable(labelContainer);
+      labelContainer.querySelector('.delete-btn').addEventListener('click', () => {
+        removeCustomDataLabel(field);
+        const chk = document.querySelector(`.data-field-toggle[data-field="${field}"]`);
+        if (chk) chk.checked = false;
+      });
+    }
+
+    function removeCustomDataLabel(field) {
+      const el = document.getElementById(`label-${field}`); if (el) el.remove();
+      customDataLabels = customDataLabels.filter(item => item.id !== field);
+    }
+
+    function updateLabelPositions() {
+      detectedPeaks.forEach(p => {
+        const anchor = toCanvasCoords(p.lat, p.lon);
+        p.element.style.left = `${anchor.x + p.relX}px`; p.element.style.top = `${anchor.y + p.relY}px`;
+      });
+    }
+
+    function redrawCanvasAndLines() {
+      if (trackPoints.length === 0) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height); drawMapTiles();
+      const renderTrackColor = getDisplayColor(selectedTrackColor);
+      ctx.beginPath(); ctx.strokeStyle = renderTrackColor; ctx.lineWidth = 2.5;
+      trackPoints.forEach((p, index) => {
+        const pt = toCanvasCoords(p.lat, p.lon);
+        if (index === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+      const style = lineStyleSelect.value;
+      detectedPeaks.forEach(p => {
+        const anchor = toCanvasCoords(p.lat, p.lon);
+        ctx.beginPath(); ctx.arc(anchor.x, anchor.y, 3.5, 0, Math.PI * 2); ctx.fillStyle = renderTrackColor; ctx.fill();
+        const labelHeight = p.element.offsetHeight || 15;
+        const targetX = anchor.x + p.relX; const targetY = anchor.y + p.relY + (labelHeight / 2);
+        ctx.beginPath(); ctx.setLineDash([3, 3]); ctx.strokeStyle = renderTrackColor; ctx.lineWidth = 1;
+        if (style === 'arc') {
+          ctx.moveTo(anchor.x, anchor.y); ctx.quadraticCurveTo(anchor.x + p.relX * 0.8, anchor.y, targetX, targetY);
+        } else {
+          ctx.moveTo(anchor.x, anchor.y); ctx.lineTo(targetX, anchor.y); ctx.lineTo(targetX, targetY);
+        }
+        ctx.stroke(); ctx.setLineDash([]);
+      });
+    }
+
+    function drawElevationProfile() {
+      if (trackPoints.length === 0) return;
+      eleCanvas.width = 292; eleCanvas.height = 60; eleCtx.clearRect(0, 0, eleCanvas.width, eleCanvas.height);
+      let maxEle = -Infinity, minEle = Infinity, maxPt = null;
+      trackPoints.forEach(p => {
+        if (p.ele > maxEle) { maxEle = p.ele; maxPt = p; }
+        if (p.ele < minEle) minEle = p.ele;
+      });
+      const totalDistance = trackPoints[trackPoints.length - 1].dist;
+      if (totalDistance <= 0 || maxEle === minEle) return;
+      const eleSpan = maxEle - minEle || 1, padding = 12, w = eleCanvas.width, h = eleCanvas.height - padding;
+      const renderTrackColor = getDisplayColor(selectedTrackColor), renderTextColor = getDisplayColor(selectedTextColor);
+      eleCtx.beginPath(); eleCtx.strokeStyle = renderTrackColor; eleCtx.lineWidth = 1.5;
+      trackPoints.forEach((p, index) => {
+        const px = (p.dist / totalDistance) * w; const py = h - ((p.ele - minEle) / eleSpan) * (h - 10) + padding;
+        if (index === 0) eleCtx.moveTo(px, py); else eleCtx.lineTo(px, py);
+      });
+      eleCtx.stroke();
+      if (maxPt) {
+        const peakX = (maxPt.dist / totalDistance) * w; const peakY = h - ((maxPt.ele - minEle) / eleSpan) * (h - 10) + padding;
+        eleCtx.beginPath(); eleCtx.arc(peakX, peakY, 3, 0, Math.PI * 2); eleCtx.fillStyle = renderTrackColor; eleCtx.fill();
+        eleCtx.font = "bold 9px -apple-system, BlinkMacSystemFont, sans-serif"; eleCtx.fillStyle = renderTextColor; eleCtx.textAlign = "center";
+        eleCtx.fillText(`${translations[currentLang].maxEle} ${Math.round(maxEle)}m`, peakX, peakY - 5);
+      }
+    }
+
+    langBtn.addEventListener('click', () => {
+      currentLang = currentLang === "no" ? "en" : "no"; const t = translations[currentLang];
+      langBtn.textContent = t.flag;
+      document.getElementById('lbl-map').textContent = t.lblMap; document.getElementById('lbl-track-color').textContent = t.lblTrackColor;
+      document.getElementById('lbl-text-color').textContent = t.lblTextColor; document.getElementById('lbl-zoom').textContent = t.lblZoom;
+      document.getElementById('lbl-border').textContent = t.lblBorder; document.getElementById('lbl-line-style').textContent = t.lblLineStyle;
+      document.getElementById('opt-corner').textContent = t.optCorner; document.getElementById('opt-arc').textContent = t.optArc;
+      document.getElementById('lbl-invert').textContent = t.lblInvert; document.getElementById('download-btn').textContent = t.downloadBtn;
+      document.getElementById('chk-date').textContent = t.chkDate; document.getElementById('chk-dist').textContent = t.chkDist;
+      document.getElementById('chk-distToPeak').textContent = t.chkDistToPeak; document.getElementById('chk-elevationGain').textContent = t.chkElevationGain;
+      document.getElementById('chk-duration').textContent = t.chkDuration; document.getElementById('chk-startTime').textContent = t.chkStartTime;
+      document.getElementById('chk-endTime').textContent = t.chkEndTime; document.getElementById('chk-timeToPeak').textContent = t.chkTimeToPeak;
+      document.getElementById('info-title').textContent = t.infoTitle; document.getElementById('info-li1').innerHTML = t.infoLi1;
+      document.getElementById('info-li2').innerHTML = t.infoLi2; document.getElementById('info-li3').innerHTML = t.infoLi3;
+      document.getElementById('info-li4').innerHTML = t.infoLi4; document.getElementById('info-note').textContent = t.infoNote;
+      if (titleInput.value === translations.no.defaultTitle || titleInput.value === translations.en.defaultTitle) {
+        titleInput.value = t.defaultTitle; autoExpandTitle();
+      }
+      if (trackPoints.length > 0) recalculateStats(); else statusEl.textContent = t.statusInitial;
+    });
+
+    function downloadImage() {
+      if (trackPoints.length === 0) { alert(translations[currentLang].alertGpx); return; }
+      const exportCanvas = document.createElement('canvas'); exportCanvas.width = canvas.width; exportCanvas.height = canvas.height;
+      const exportCtx = exportCanvas.getContext('2d');
+      exportCtx.fillStyle = "#ffffff"; exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+      exportCtx.drawImage(canvas, 0, 0);
+      const frameRect = frame.getBoundingClientRect(); const renderTextColor = getDisplayColor(selectedTextColor);
+      if (titleContainer.style.display !== 'none') {
+        const rect = titleContainer.getBoundingClientRect();
+        exportCtx.font = "800 18px -apple-system, BlinkMacSystemFont, sans-serif"; exportCtx.fillStyle = renderTextColor; exportCtx.textAlign = "center";
+        exportCtx.fillText(titleInput.value, rect.left - frameRect.left + (rect.width / 2), rect.top - frameRect.top + 16);
+      }
+      if (elevationContainer.style.display !== 'none') {
+        const rect = elevationContainer.getBoundingClientRect();
+        exportCtx.drawImage(eleCanvas, rect.left - frameRect.left, rect.top - frameRect.top);
+      }
+      if (coordContainer.style.display !== 'none') {
+        const rect = coordContainer.getBoundingClientRect();
+        exportCtx.font = "600 10px -apple-system, BlinkMacSystemFont, sans-serif"; exportCtx.fillStyle = renderTextColor; exportCtx.textAlign = "center";
+        exportCtx.fillText(coordText.textContent, rect.left - frameRect.left + (rect.width / 2), rect.top - frameRect.top + 12);
+      }
+      detectedPeaks.forEach(p => {
+        const rect = p.element.getBoundingClientRect();
+        exportCtx.font = "bold 11px -apple-system, BlinkMacSystemFont, sans-serif"; exportCtx.fillStyle = renderTextColor; exportCtx.textAlign = "left";
+        exportCtx.fillText(p.element.querySelector('.draggable-label').textContent, rect.left - frameRect.left + 4, rect.top - frameRect.top + 12);
+      });
+      customDataLabels.forEach(lbl => {
+        const rect = lbl.element.getBoundingClientRect();
+        exportCtx.font = "bold 11px -apple-system, BlinkMacSystemFont, sans-serif"; exportCtx.fillStyle = renderTextColor; exportCtx.textAlign = "left";
+        exportCtx.fillText(lbl.element.querySelector('.draggable-label').textContent, rect.left - frameRect.left + 4, rect.top - frameRect.top + 12);
+      });
+      if (toggleBorder.checked) {
+        const bw = parseInt(borderWidth.value); exportCtx.strokeStyle = renderTextColor; exportCtx.lineWidth = bw * 2;
+        exportCtx.strokeRect(0, 0, exportCanvas.width, exportCanvas.height);
+      }
+      const finalCanvas = document.createElement('canvas'); finalCanvas.width = canvas.width; finalCanvas.height = canvas.height;
+      const finalCtx = finalCanvas.getContext('2d');
+      if (toggleInvert.checked) { finalCtx.filter = "invert(1) hue-rotate(180deg)"; }
+      finalCtx.drawImage(exportCanvas, 0, 0);
+      const link = document.createElement('a'); link.download = 'gpx-spor.png'; link.href = finalCanvas.toDataURL('image/png'); link.click();
+    }
+
+    autoExpandTitle();
+  </script>
+</body>
+</html>
