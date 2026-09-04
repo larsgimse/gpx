@@ -14,11 +14,12 @@
     <div class="control-group">
       <label><input type="checkbox" id="toggle-map"> <span id="lbl-map">Bakgrunnskart</span></label>
       <select id="map-source">
+        <option value="carto_voyager">CARTO Voyager (Detaljert & Myk)</option>
+        <option value="carto_positron">CARTO Positron (Lys & Minimalistisk)</option>
+        <option value="carto_dark">CARTO Dark Matter</option>
         <option value="kartverket_topo">Kartverket Topo (Tette koter)</option>
         <option value="kartverket_gray">Kartverket (Gråtone)</option>
         <option value="opentopo">OpenTopoMap (Koter & Terreng)</option>
-        <option value="carto">CARTO Light</option>
-        <option value="carto_dark">CARTO Dark</option>
         <option value="osm">OpenStreetMap</option>
         <option value="esri_sat">Esri Satellitt</option>
       </select>
@@ -112,7 +113,6 @@
     </div>
   </div>
 
-  <!-- Script-innlasting i riktig rekkefølge -->
   <script src="js/config.js"></script>
   <script src="js/gpx.js"></script>
   <script src="js/peaks.js"></script>
