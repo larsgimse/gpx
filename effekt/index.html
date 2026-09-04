@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minimalistisk GPX-visning</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="inverted">
+
+  <div class="controls">
+    <input type="file" id="gpx-input" accept=".gpx">
+    
+    <div class="control-group">
+      <label><input type="checkbox" id="toggle-map"> <span id="lbl-map">Bakgrunnskart</span></label>
+      <select id="map-source">
+        <option value="kartverket_topo">Kartverket Topo (Tette koter)</option>
+        <option value="kartverket_gray">Kartverket (Gråtone)</option>
+        <option value="opentopo">OpenTopoMap (Koter & Terreng)</option>
+        <option value="carto">CARTO Light</option>
+        <option value="carto_dark">CARTO Dark</option>
+        <option value="osm">OpenStreetMap</option>
+        <option value="esri_sat">Esri Satellitt</option>
+      </select>
+      <input type="range" id="map-opacity" min="0.1" max="1" step="0.05" value="0.4" style="width:50px;" title="Kartintensitet">
+    </div>
+
+    <div class="control-group">
+      <span id="lbl-track-color">Sporfarge:</span>
+      <div class="color-palette" id="track-color-palette"></div>
+    </div>
+
+    <div class="control-group">
+      <span id="lbl-text-color">Tekst- & rammefarge:</span>
+      <div class="color-palette" id="text-color-palette"></div>
+    </div>
+
+    <div class="control-group">
+      <span id="lbl-zoom">Zoom:</span>
+      <button type="button" class="zoom-btn" id="zoom-out">−</button>
+      <button type="button" class="zoom-btn" id="zoom-in">+</button>
+    </div>
+
+    <div class="control-group">
+      <label><input type="checkbox" id="toggle-border"> <span id="lbl-border">Ramme</span></label>
+      <input type="range" id="border-width" min="1" max="10" value="2" style="width:50px;" title="Rammetykkelse">
+    </div>
+
+    <div class="control-group">
+      <label id="lbl-line-style">Linjestil:</label>
+      <select id="line-style">
+        <option value="corner" id="opt-corner">Rett vinkel</option>
+        <option value="arc" id="opt-arc">Tilpasset bue</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label><input type="checkbox" id="toggle-invert" checked> <span id="lbl-invert">Inverter</span></label>
+    </div>
+
+    <button type="button" id="lang-toggle-btn">🇬🇧 EN</button>
+    <button id="download-btn">Last ned bilde</button>
+
+    <div class="control-group checkbox-group">
+      <label><input type="checkbox" class="data-field-toggle" data-field="date"> <span id="chk-date">Dato</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="dist"> <span id="chk-dist">Lengde totalt</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="distToPeak"> <span id="chk-distToPeak">Lengde til topp</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="elevationGain"> <span id="chk-elevationGain">Total stigning</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="duration"> <span id="chk-duration">Tid totalt</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="startTime"> <span id="chk-startTime">Start</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="endTime"> <span id="chk-endTime">Slutt</span></label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="timeToPeak"> <span id="chk-timeToPeak">Tid til topp</span></label>
+    </div>
+
+    <div id="status-container">
+      <div id="status">Last opp en GPX-fil</div>
+      <div class="progress-bar-bg" id="progress-bg">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="frame" class="inverted">
+    <div id="info-overlay">
+      <h2 id="info-title">GPX-Visning & Kartgenerator</h2>
+      <ul>
+        <li id="info-li1"><b>Last opp GPX:</b> Genererer automatisk sporlinje, fjelltopper, lengde og høydeprofil.</li>
+        <li id="info-li2"><b>Flyttbare elementer:</b> Klikk og dra tittelen, høydekurven, koordinater og toppetiketter fritt. Klikk på <b>×</b> for å slette enkelt-elementer.</li>
+        <li id="info-li3"><b>Bakgrunnskart:</b> Velg mellom Kartverket (med tette høydekoter), OpenTopoMap, Satellitt og stilrene vektorkart.</li>
+        <li id="info-li4"><b>Tilpassing:</b> Juster zoom, panorering, rammestørrelse, og endre tema, sporfarge eller tekstfarge uavhengig av hverandre.</li>
+      </ul>
+      <p class="note" id="info-note">Merk: Kartflisene hentes direkte fra eksterne kartservere. Ved zooming eller navigering kan det ta noe tid før nye kartbilde-fliser er helt ferdig lastet ned og vises i full oppløsning.</p>
+    </div>
+
+    <canvas id="trackCanvas" width="650" height="650"></canvas>
+    
+    <div id="labels-layer">
+      <div id="title-container" class="draggable-element">
+        <input type="text" id="title-input" value="LEGG TIL EGEN TITTEL">
+        <span class="delete-btn" title="Fjern tittel">×</span>
+      </div>
+
+      <div id="elevation-container" class="draggable-element" style="display: none;">
+        <canvas id="elevationCanvas" width="292" height="60"></canvas>
+        <span class="delete-btn" style="position: absolute; right: -12px; top: 0;" title="Fjern høydekurve">×</span>
+      </div>
+
+      <div id="coord-container" class="draggable-element" style="display: none;">
+        <span class="draggable-label" id="coord-text"></span>
+        <span class="delete-btn" title="Fjern koordinat">×</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script-innlasting i riktig rekkefølge -->
+  <script src="js/config.js"></script>
+  <script src="js/gpx.js"></script>
+  <script src="js/peaks.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
