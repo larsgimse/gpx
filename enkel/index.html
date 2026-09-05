@@ -10,6 +10,7 @@
             --bg-color: #111111;
             --panel-bg: rgba(26, 26, 26, 0.9);
             --text-color: #eeeeee;
+            --highlight-orange: #fc4c02;
         }
         
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -71,7 +72,6 @@
         }
         
         .btn:hover { background: #333; border-color: #555; }
-
         .btn-upload { background: #3a3a3a; border-color: #555; }
 
         .btn-toggle {
@@ -80,7 +80,6 @@
             color: #aaa;
         }
 
-        /* Tydelig toggle-stil når aktivert */
         .btn-toggle.active {
             background: #ffffff !important;
             border-color: #ffffff !important;
@@ -110,7 +109,6 @@
             cursor: pointer;
         }
 
-        /* Skjult til sporet klikkes */
         .track-tools {
             display: none;
             align-items: center;
@@ -214,6 +212,50 @@
             pointer-events: none;
         }
 
+        #help-info-box {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            width: 310px;
+            background: rgba(20, 20, 20, 0.92);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px 14px;
+            z-index: 1000;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: #ccc;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        #help-info-box h4 {
+            color: #fff;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #help-info-box ul {
+            padding-left: 16px;
+            margin-top: 4px;
+        }
+
+        #help-info-box li {
+            margin-bottom: 4px;
+        }
+
+        #close-help-btn {
+            cursor: pointer;
+            font-size: 14px;
+            color: #888;
+            font-weight: bold;
+        }
+
+        #close-help-btn:hover { color: #fff; }
+
         #export-modal {
             display: none;
             position: fixed;
@@ -249,6 +291,12 @@
             h1 { position: relative; left: auto; transform: none; font-size: 0.95rem; }
             .nav-buttons { width: 100%; justify-content: center; flex-wrap: wrap; }
             .btn, .select-style { flex: 1; text-align: center; }
+            #help-info-box {
+                bottom: 140px;
+                right: 10px;
+                left: 10px;
+                width: auto;
+            }
             .leaflet-bottom.leaflet-left { bottom: 150px; }
         }
     </style>
@@ -270,7 +318,7 @@
             </div>
         </div>
 
-        <h1>Din GPX tur</h1>
+        <h1>Oversiktskart</h1>
 
         <div class="nav-buttons">
             <button id="btn-download-image" class="btn btn-download">📷 Last ned bilde</button>
@@ -287,6 +335,16 @@
         <canvas id="peaks-canvas-layer"></canvas>
         <div id="labels-layer"></div>
         <div id="crop-box"></div>
+
+        <div id="help-info-box">
+            <h4>Funksjonalitet <span id="close-help-btn" title="Lukk">×</span></h4>
+            <ul>
+                <li><b>Last opp GPX:</b> Filtrerer og tilpasser sporet automatisk til kartutsnittet.</li>
+                <li><b>Klikk på sporet:</b> Zoomer inn til sporet med god margin, og åpner verktøy for fjelltopper og linjestil.</li>
+                <li><b>Fjelltopper:</b> Henter stedsnavn i utsnittet som kan flyttes eller slettes.</li>
+                <li><b>Bildeeksport:</b> Marker kartsnitt og laster ned i valgfri kvalitet.</li>
+            </ul>
+        </div>
     </div>
 
     <div id="export-modal">
@@ -312,18 +370,19 @@
         const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         const minRenderer = L.canvas({ tolerance: isTouchDevice ? 22 : 3 });
 
-        // Standard oversiktskart over Tromsø ved oppstart
-        const TROMSO_LAT = 69.6492;
-        const TROMSO_LON = 18.9553;
-        const START_ZOOM = 10;
+        const START_LAT = 69.65;
+        const START_LON = 18.95;
+        const START_ZOOM = 9;
 
         const map = L.map('map', {
-            zoomControl: false,
+            zoomControl: true,
             maxZoom: 18,
             renderer: minRenderer
-        }).setView([TROMSO_LAT, TROMSO_LON], START_ZOOM);
+        }).setView([START_LAT, START_LON], START_ZOOM);
 
-        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+        if (isTouchDevice) {
+            map.zoomControl.setPosition('topleft');
+        }
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2o3a_1_671194bbedbad28841272141', {
             attribution: '&copy; OpenStreetMap &copy; CARTO',
@@ -346,6 +405,8 @@
         const exportModal = document.getElementById('export-modal');
         const modalConfirm = document.getElementById('modal-confirm');
         const modalCancel = document.getElementById('modal-cancel');
+        const helpInfoBox = document.getElementById('help-info-box');
+        const closeHelpBtn = document.getElementById('close-help-btn');
 
         const peaksCanvas = document.getElementById('peaks-canvas-layer');
         const peaksCtx = peaksCanvas.getContext('2d');
@@ -354,6 +415,62 @@
         let peaksEnabled = false;
         let detectedPeaks = [];
 
+        // Ramer-Douglas-Peucker filtreringsalgoritme for GPX-spor
+        function getSqDist(p1, p2) {
+            const dx = p1.lat - p2.lat, dy = p1.lng - p2.lng;
+            return dx * dx + dy * dy;
+        }
+
+        function getSqSegDist(p, p1, p2) {
+            let x = p1.lat, y = p1.lng, dx = p2.lat - x, dy = p2.lng - y;
+            if (dx !== 0 || dy !== 0) {
+                const t = ((p.lat - x) * dx + (p.lng - y) * dy) / (dx * dx + dy * dy);
+                if (t > 1) { x = p2.lat; y = p2.lng; }
+                else if (t > 0) { x += dx * t; y += dy * t; }
+            }
+            dx = p.lat - x; dy = p.lng - y;
+            return dx * dx + dy * dy;
+        }
+
+        function simplifyDPStep(points, first, last, sqTolerance, simplified) {
+            let maxSqDist = sqTolerance, index = -1;
+            for (let i = first + 1; i < last; i++) {
+                const sqDist = getSqSegDist(points[i], points[first], points[last]);
+                if (sqDist > maxSqDist) { index = i; maxSqDist = sqDist; }
+            }
+            if (maxSqDist > sqTolerance) {
+                if (index - first > 1) simplifyDPStep(points, first, index, sqTolerance, simplified);
+                simplified.push(points[index]);
+                if (last - index > 1) simplifyDPStep(points, index, last, sqTolerance, simplified);
+            }
+        }
+
+        function simplifyPoints(points, tolerance) {
+            if (points.length <= 2) return points;
+            const sqTolerance = tolerance !== undefined ? tolerance * tolerance : 0.000001;
+            const simplified = [points[0]];
+            simplifyDPStep(points, 0, points.length - 1, sqTolerance, simplified);
+            simplified.push(points[points.length - 1]);
+            return simplified;
+        }
+
+        function filterAndSmoothTrack(layer) {
+            layer.eachLayer(subLayer => {
+                if (subLayer instanceof L.Polyline) {
+                    const latLngs = subLayer.getLatLngs();
+                    if (Array.isArray(latLngs) && latLngs.length > 0) {
+                        if (Array.isArray(latLngs[0])) {
+                            const newLatLngs = latLngs.map(part => simplifyPoints(part, 0.00003));
+                            subLayer.setLatLngs(newLatLngs);
+                        } else {
+                            const newLatLngs = simplifyPoints(latLngs, 0.00003);
+                            subLayer.setLatLngs(newLatLngs);
+                        }
+                    }
+                }
+            });
+        }
+
         function resizeCanvas() {
             peaksCanvas.width = window.innerWidth;
             peaksCanvas.height = window.innerHeight;
@@ -361,6 +478,8 @@
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
+
+        closeHelpBtn.addEventListener('click', () => { helpInfoBox.style.display = 'none'; });
 
         uploadBtn.addEventListener('click', () => {
             fileInput.value = '';
@@ -371,13 +490,8 @@
             const files = e.target.files;
             if (!files || files.length === 0) return;
 
-            const file = files[0];
-            if (!file.name.toLowerCase().endsWith('.gpx')) {
-                alert('Vennligst velg en gyldig .gpx-fil.');
-                return;
-            }
-
-            lesOgLeggTilGpx(file);
+            helpInfoBox.style.display = 'none';
+            lesOgLeggTilGpx(files[0]);
         });
 
         function lesOgLeggTilGpx(file) {
@@ -391,14 +505,14 @@
                 clearPeaks();
                 peaksEnabled = false;
                 peaksBtn.classList.remove('active');
-                trackTools.classList.remove('visible'); // Skjul fjelltopp/linjestil ved ny lasting
+                trackTools.classList.remove('visible');
 
                 const track = new L.GPX(evt.target.result, {
                     async: true,
                     polyline_options: {
                         color: '#ffffff',
-                        opacity: 0.95,
-                        weight: 3.5,
+                        opacity: 0.8,
+                        weight: 3.0,
                         lineCap: 'round'
                     },
                     marker_options: { startIconUrl: null, endIconUrl: null, shadowUrl: null }
@@ -406,35 +520,39 @@
 
                 track.on('loaded', function(e) {
                     const layer = e.target;
+                    
+                    // Kjør GPX-filtrering for å rense sporet
+                    filterAndSmoothTrack(layer);
+
                     const trackBounds = layer.getBounds();
                     if (!trackBounds.isValid()) return;
 
                     activeTrackLayer = layer;
 
-                    // Hover-effekt
-                    layer.on('mouseover', () => layer.setStyle({ weight: 5.5 }));
-                    layer.on('mouseout', () => layer.setStyle({ weight: 3.5 }));
-
-                    // Klikk på sporet -> Vis verktøy & Zoom inn til ca 80% dekning
-                    layer.on('click', function(ev) {
-                        L.DomEvent.stopPropagation(ev);
+                    const onTrackClick = function(ev) {
+                        if (ev) L.DomEvent.stopPropagation(ev);
                         
-                        // Behold hvit farge
-                        layer.setStyle({ color: '#ffffff', weight: 4.5 });
-                        
-                        // Vis fjelltopp-knapp og linjestil
                         trackTools.classList.add('visible');
 
-                        // Zoom inn så sporet dekker ca 80% av skjermen (10% padding rundt)
-                        map.fitBounds(trackBounds, { 
-                            padding: [map.getSize().y * 0.10, map.getSize().x * 0.10] 
-                        });
-                    });
+                        // Zoom-logikk hentet fra index3.html
+                        map.fitBounds(trackBounds, { padding: [100, 100] });
+                    };
 
-                    // Ved opplasting: zoom slik at sporet dekker ca 10% av kartutsnittet
-                    map.fitBounds(trackBounds, { 
-                        padding: [map.getSize().y * 1.8, map.getSize().x * 1.8] 
-                    });
+                    layer.on('click', onTrackClick);
+                    layer.eachLayer && layer.eachLayer(l => l.on('click', onTrackClick));
+
+                    layer.on('mouseover', () => layer.setStyle({ color: 'var(--highlight-orange)', weight: 4.5, opacity: 1.0 }));
+                    layer.on('mouseout', () => layer.setStyle({ color: '#ffffff', weight: 3.0, opacity: 0.8 }));
+
+                    // Sjekk avstand for zoom ved opplasting (fra index3.html)
+                    const center = trackBounds.getCenter();
+                    const distFraStart = map.distance(center, L.latLng(START_LAT, START_LON));
+
+                    if (distFraStart > 80000) {
+                        map.setView(center, 8);
+                    } else {
+                        map.fitBounds(trackBounds, { padding: [100, 100] });
+                    }
                 });
 
                 track.addTo(map);
@@ -446,13 +564,11 @@
 
         peaksBtn.addEventListener('click', () => {
             peaksEnabled = !peaksEnabled;
-            
+            peaksBtn.classList.toggle('active', peaksEnabled);
             if (peaksEnabled) {
-                peaksBtn.classList.add('active');
                 fetchPeaksForCurrentView();
             } else {
-                peaksBtn.classList.remove('active');
-                clearPeaks(); // Tømmer cachen helt ved toggle AV
+                clearPeaks();
             }
         });
 
@@ -654,7 +770,7 @@
             });
         }
 
-        // --- OMRÅDEMARKERING OG BILDENEDLASTING (KORREKT UTSNITT) ---
+        // --- BILDEEKSPORT ---
 
         let isSelectionMode = false;
         let isSelecting = false;
@@ -671,7 +787,7 @@
 
         mapDiv.addEventListener('mousedown', (e) => {
             if (!isSelectionMode) return;
-            if (e.target.closest('header') || e.target.closest('.draggable-element') || e.target.closest('#export-modal')) return;
+            if (e.target.closest('header') || e.target.closest('.draggable-element') || e.target.closest('#export-modal') || e.target.closest('#help-info-box')) return;
 
             isSelecting = true;
             const rect = mapDiv.getBoundingClientRect();
@@ -745,14 +861,11 @@
             const ctx = exportCanvas.getContext('2d');
 
             ctx.scale(scale, scale);
-
-            // Bakgrunn
             ctx.fillStyle = '#111111';
             ctx.fillRect(0, 0, cropW, cropH);
 
             const mapRect = mapDiv.getBoundingClientRect();
 
-            // 1. Tegn kartfliser presist forskjøvet i henhold til cropX/cropY
             const tiles = document.querySelectorAll('.leaflet-tile-container img');
             for (let tile of tiles) {
                 const tileRect = tile.getBoundingClientRect();
@@ -775,7 +888,6 @@
                 }
             }
 
-            // 2. Tegn GPX-sporet (SVG)
             const svgLayer = document.querySelector('.leaflet-overlay-pane svg');
             if (svgLayer) {
                 const svgRect = svgLayer.getBoundingClientRect();
@@ -796,10 +908,8 @@
                 URL.revokeObjectURL(url);
             }
 
-            // 3. Tegn stiplede pekelinjer til fjelltoppene
             ctx.drawImage(peaksCanvas, -cropX, -cropY);
 
-            // 4. Tegn fjelltopp-etiketter som treffer innenfor det valgte utsnittet
             detectedPeaks.forEach(p => {
                 const rect = p.element.getBoundingClientRect();
                 const x = rect.left - mapRect.left - cropX;
@@ -817,14 +927,12 @@
                 }
             });
 
-            // Nedlasting
             const link = document.createElement('a');
             link.download = `kart-utsnitt-${Math.round(cropW * scale)}x${Math.round(cropH * scale)}.png`;
             link.href = exportCanvas.toDataURL('image/png');
             link.click();
         }
 
-        // Nullstill-knapp
         resetBtn.addEventListener('click', function() {
             if (activeTrackLayer) {
                 map.removeLayer(activeTrackLayer);
@@ -834,8 +942,9 @@
             peaksEnabled = false;
             peaksBtn.classList.remove('active');
             trackTools.classList.remove('visible');
+            helpInfoBox.style.display = 'block';
             fileInput.value = '';
-            map.setView([TROMSO_LAT, TROMSO_LON], START_ZOOM);
+            map.setView([START_LAT, START_LON], START_ZOOM);
         });
     </script>
 </body>
