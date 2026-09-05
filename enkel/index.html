@@ -1,1006 +1,880 @@
 <!DOCTYPE html>
 <html lang="no">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Enkel GPX-visning</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background-color: #f0f0f0;
-      color: #000;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>GPX Visning - Enkel Oversikt med Fjelltopper og Bildeeksport</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --bg-color: #111111;
+            --panel-bg: rgba(26, 26, 26, 0.9);
+            --text-color: #eeeeee;
+            --highlight-orange: #fc4c02;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            height: 100dvh; 
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
 
-    .controls {
-      margin-bottom: 15px;
-      font-size: 13px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-      max-width: 950px;
-      justify-content: center;
-    }
+        header {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            background: var(--panel-bg);
+            padding: 10px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #222;
+            border-radius: 8px;
+            z-index: 1000;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            min-height: 52px;
+        }
 
-    .control-group {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: #fff;
-      padding: 6px 10px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      color: #000;
-    }
+        /* Sentrert overskrift */
+        h1 { 
+            font-size: 1.1rem; 
+            font-weight: 700; 
+            letter-spacing: -0.5px; 
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            margin: 0;
+            pointer-events: none;
+        }
+        
+        .nav-buttons { display: flex; gap: 8px; align-items: center; z-index: 1001; }
+        
+        .btn {
+            padding: 8px 14px;
+            border-radius: 6px;
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #333;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        
+        .btn:hover {
+            background: #333;
+            border-color: #555;
+        }
 
-    .control-group select {
-      background: #fff;
-      color: #000;
-      border: 1px solid #ccc;
-      padding: 2px 5px;
-      border-radius: 3px;
-      font-size: 12px;
-    }
+        /* Opplastningsknapp i grå stil */
+        .btn-upload {
+            background: #3a3a3a;
+            border-color: #555;
+            color: #fff;
+            font-weight: 500;
+        }
 
-    .checkbox-group {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
+        .btn-upload:hover {
+            background: #4a4a4a;
+            border-color: #666;
+        }
 
-    button {
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      background: #000;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
+        .btn-toggle {
+            background: #222;
+            border-color: #444;
+            color: #ccc;
+        }
 
-    button:hover { background: #333; }
+        .btn-toggle.active {
+            background: #444;
+            border-color: #888;
+            color: #fff;
+        }
 
-    .zoom-btn {
-      padding: 2px 8px;
-      font-size: 14px;
-      font-weight: bold;
-      min-width: 26px;
-    }
+        .btn-reset {
+            background: #222;
+            border-color: #444;
+            color: #ccc;
+        }
 
-    #status-container {
-      width: 100%;
-      max-width: 650px;
-      margin-top: 6px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-    }
+        .btn-download {
+            background: #2a2a2a;
+            border-color: #444;
+            color: #fff;
+        }
 
-    #status {
-      font-weight: 500;
-      color: #444;
-      font-size: 12px;
-      text-align: center;
-    }
+        .select-style {
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
 
-    .progress-bar-bg {
-      width: 100%;
-      height: 6px;
-      background-color: #ddd;
-      border-radius: 3px;
-      overflow: hidden;
-      display: none;
-    }
+        #file-input {
+            display: none;
+        }
 
-    .progress-bar-fill {
-      height: 100%;
-      width: 0%;
-      background-color: #000;
-      transition: width 0.15s ease;
-    }
+        #map-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
 
-    #frame {
-      width: 650px;
-      height: 650px;
-      background: #ffffff;
-      border: 0px solid #000000;
-      position: relative;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-      overflow: hidden;
-      cursor: grab;
-    }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+        }
 
-    #frame.grabbing { cursor: grabbing; }
+        /* Lag for flyttbare fjelltopper */
+        #peaks-canvas-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 450;
+        }
 
-    #info-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 20;
-      background: rgba(255, 255, 255, 0.95);
-      color: #000;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      padding: 40px;
-      text-align: center;
-    }
+        #labels-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 500;
+        }
 
-    #info-overlay h2 {
-      font-size: 20px;
-      font-weight: 800;
-      letter-spacing: 1px;
-      margin-bottom: 15px;
-      text-transform: uppercase;
-    }
+        .draggable-element {
+            position: absolute;
+            pointer-events: auto;
+            cursor: move;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
 
-    #info-overlay ul {
-      text-align: left;
-      font-size: 13px;
-      line-height: 1.6;
-      margin-bottom: 20px;
-      max-width: 480px;
-      list-style-type: square;
-      padding-left: 20px;
-    }
+        .draggable-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            color: #00d2ff;
+            text-transform: uppercase;
+        }
 
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-    }
+        .delete-btn {
+            display: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            color: #ff5555;
+            line-height: 1;
+            padding: 0 2px;
+        }
 
-    #mapCanvas { z-index: 1; }
-    #trackCanvas { z-index: 2; }
+        .draggable-element:hover .delete-btn {
+            display: inline-block;
+        }
 
-    #labels-layer {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 10;
-      pointer-events: none;
-    }
+        /* Stiplet linje for områdemarkering */
+        #crop-box {
+            position: absolute;
+            border: 1.5px dashed #ffffff;
+            background: rgba(255, 255, 255, 0.1);
+            pointer-events: none;
+            z-index: 900;
+            display: none;
+        }
 
-    .draggable-element {
-      position: absolute;
-      pointer-events: auto;
-      cursor: move;
-      user-select: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      background: transparent;
-      padding: 2px 4px;
-    }
+        /* Informasjonsboks for områdemarkering */
+        #info-banner {
+            position: absolute;
+            top: 75px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            z-index: 1000;
+            display: none;
+            border: 1px solid #555;
+            pointer-events: none;
+        }
 
-    #title-container {
-      top: 25px;
-      left: 50%;
-      transform: translateX(-50%);
-    }
+        /* Modal for valging av bildekvalitet */
+        #export-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
 
-    #title-input {
-      font-size: 18px;
-      font-weight: 800;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      text-align: center;
-      border: 1px dashed transparent;
-      background: transparent;
-      outline: none;
-      color: #0077b6;
-      font-family: inherit;
-      cursor: move;
-      width: 20ch;
-      min-width: 100px;
-      max-width: 100%;
-    }
+        .modal-content {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-width: 280px;
+        }
 
-    #title-input:hover { border-color: #ccc; }
-    #title-input:focus {
-      cursor: text;
-      border-color: #ccc;
-    }
+        .modal-content h3 { font-size: 1rem; color: #fff; }
 
-    .draggable-label {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-      color: #0077b6;
-      text-transform: uppercase;
-    }
+        .leaflet-popup-content-wrapper {
+            background: #1a1a1a !important;
+            color: #fff !important;
+            border: 1px solid var(--highlight-orange);
+            border-radius: 6px;
+        }
+        .leaflet-popup-tip {
+            background: #1a1a1a !important;
+        }
 
-    .delete-btn {
-      display: none;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: bold;
-      color: #ff0000;
-      line-height: 1;
-      padding: 0 2px;
-    }
-
-    .draggable-element:hover .delete-btn {
-      display: inline-block;
-    }
-
-    #elevation-container {
-      width: 292px;
-      height: 60px;
-      bottom: 40px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    #elevationCanvas {
-      width: 292px;
-      height: 60px;
-      position: relative;
-    }
-
-    #coord-container {
-      bottom: 15px;
-      left: 50%;
-      transform: translateX(-50%);
-    }
-  </style>
+        @media (max-width: 600px) {
+            header {
+                top: auto;
+                bottom: 20px;
+                flex-direction: column;
+                gap: 10px;
+                align-items: center;
+                background: rgba(20, 20, 20, 0.95);
+                box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            }
+            h1 { 
+                position: relative;
+                left: auto;
+                transform: none;
+                font-size: 0.95rem; 
+                text-align: center;
+            }
+            .nav-buttons {
+                width: 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            .btn, .select-style {
+                flex: 1;
+                text-align: center;
+            }
+            .leaflet-bottom { bottom: 100px !important; }
+        }
+    </style>
 </head>
 <body>
 
-  <div class="controls">
-    <input type="file" id="gpx-input" accept=".gpx">
-    
-    <div class="control-group">
-      <label><input type="checkbox" id="toggle-map" checked> Bakgrunnskart</label>
-      <select id="map-source">
-        <option value="carto_voyager">CARTO Voyager</option>
-        <option value="carto_positron">CARTO Positron</option>
-        <option value="kartverket_topo">Kartverket Topo</option>
-        <option value="opentopo">OpenTopoMap</option>
-        <option value="osm">OpenStreetMap</option>
-        <option value="esri_sat">Esri Satellitt</option>
-      </select>
+    <header>
+        <div class="nav-buttons">
+            <button id="btn-upload-trigger" class="btn btn-upload">📁 Last opp GPX</button>
+            <button id="btn-toggle-peaks" class="btn btn-toggle">⛰️ Fjelltopper</button>
+            <select id="line-style" class="select-style">
+                <option value="corner">Rett vinkel</option>
+                <option value="arc">Tilpasset bue</option>
+            </select>
+        </div>
+
+        <h1>Oversiktskart</h1>
+
+        <div class="nav-buttons">
+            <button id="btn-download-image" class="btn btn-download">📷 Last ned bilde</button>
+            <button id="btn-reset" class="btn btn-reset">🔄 Nullstill</button>
+        </div>
+    </header>
+
+    <input type="file" id="file-input" accept=".gpx" multiple />
+
+    <div id="info-banner">Marker området du vil ta bilde av (klikk og dra)</div>
+
+    <div id="map-container">
+        <div id="map"></div>
+        <canvas id="peaks-canvas-layer"></canvas>
+        <div id="labels-layer"></div>
+        <div id="crop-box"></div>
     </div>
 
-    <div class="control-group">
-      <span>Zoom:</span>
-      <button type="button" class="zoom-btn" id="zoom-out">−</button>
-      <button type="button" class="zoom-btn" id="zoom-in">+</button>
+    <!-- Modal for valg av kvalitet -->
+    <div id="export-modal">
+        <div class="modal-content">
+            <h3>Velg bildekvalitet</h3>
+            <select id="export-quality" class="select-style">
+                <option value="1">Standard (1x)</option>
+                <option value="2" selected>HD (2x)</option>
+                <option value="3">Full HD (3x)</option>
+                <option value="4">4K / Utskrift (4x)</option>
+            </select>
+            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 5px;">
+                <button id="modal-cancel" class="btn btn-reset">Avbryt</button>
+                <button id="modal-confirm" class="btn btn-upload">Lagre bilde</button>
+            </div>
+        </div>
     </div>
 
-    <div class="control-group">
-      <label><input type="checkbox" id="toggle-border"> Ramme</label>
-    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
 
-    <div class="control-group">
-      <label>Kvalitet:</label>
-      <select id="export-scale">
-        <option value="1">Standard (650x650)</option>
-        <option value="2" selected>HD (1300x1300)</option>
-        <option value="3">Full HD (1950x1950)</option>
-        <option value="4">4K (2600x2600)</option>
-      </select>
-    </div>
+    <script>
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const minRenderer = L.canvas({ tolerance: isTouchDevice ? 22 : 3 });
 
-    <button id="download-btn">Last ned bilde</button>
+        const START_LAT = 69.65;
+        const START_LON = 18.95;
+        const START_ZOOM = 9;
 
-    <div class="control-group checkbox-group">
-      <label><input type="checkbox" class="data-field-toggle" data-field="date"> Dato</label>
-      <label><input type="checkbox" class="data-field-toggle" data-field="dist"> Lengde totalt</label>
-      <label><input type="checkbox" class="data-field-toggle" data-field="elevationGain"> Total stigning</label>
-      <label><input type="checkbox" class="data-field-toggle" data-field="duration"> Tid totalt</label>
-    </div>
+        const map = L.map('map', {
+            zoomControl: true,
+            maxZoom: 18,
+            renderer: minRenderer
+        }).setView([START_LAT, START_LON], START_ZOOM);
 
-    <div id="status-container">
-      <div id="status">Last opp en GPX-fil</div>
-      <div class="progress-bar-bg" id="progress-bg">
-        <div class="progress-bar-fill" id="progress-fill"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="frame">
-    <div id="info-overlay">
-      <h2>Enkel GPX-Visning</h2>
-      <ul>
-        <li><b>Last opp GPX:</b> Genererer automatisk sporlinje, lengde og høydeprofil.</li>
-        <li><b>Flyttbare elementer:</b> Klikk og dra tittelen, høydekurven og koordinatene fritt.</li>
-        <li><b>Panner og zoom:</b> Dra i kartet eller bruk +/- knappene for å tilpasse utsnittet.</li>
-      </ul>
-    </div>
-
-    <canvas id="mapCanvas" width="650" height="650"></canvas>
-    <canvas id="trackCanvas" width="650" height="650"></canvas>
-
-    <div id="labels-layer">
-      <div id="title-container" class="draggable-element">
-        <input type="text" id="title-input" value="LEGG TIL EGEN TITTEL">
-        <span class="delete-btn" title="Fjern tittel">×</span>
-      </div>
-
-      <div id="elevation-container" class="draggable-element" style="display: none;">
-        <canvas id="elevationCanvas" width="292" height="60"></canvas>
-        <span class="delete-btn" style="position: absolute; right: -12px; top: 0;" title="Fjern høydekurve">×</span>
-      </div>
-
-      <div id="coord-container" class="draggable-element" style="display: none;">
-        <span class="draggable-label" id="coord-text"></span>
-        <span class="delete-btn" title="Fjern koordinat">×</span>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const apiKey = "cb1_2o3a_1_671194bbedbad28841272141";
-
-    const mapCanvas = document.getElementById('mapCanvas');
-    const mapCtx = mapCanvas.getContext('2d');
-
-    const trackCanvas = document.getElementById('trackCanvas');
-    const trackCtx = trackCanvas.getContext('2d');
-    
-    const eleCanvas = document.getElementById('elevationCanvas');
-    const eleCtx = eleCanvas.getContext('2d');
-    
-    const frame = document.getElementById('frame');
-    const infoOverlay = document.getElementById('info-overlay');
-    const labelsLayer = document.getElementById('labels-layer');
-    const statusEl = document.getElementById('status');
-    const progressBg = document.getElementById('progress-bg');
-    const progressFill = document.getElementById('progress-fill');
-    
-    const titleContainer = document.getElementById('title-container');
-    const titleInput = document.getElementById('title-input');
-    const elevationContainer = document.getElementById('elevation-container');
-    const coordContainer = document.getElementById('coord-container');
-    const coordText = document.getElementById('coord-text');
-    
-    const toggleMap = document.getElementById('toggle-map');
-    const mapSourceSelect = document.getElementById('map-source');
-    const exportScaleSelect = document.getElementById('export-scale');
-
-    const zoomInBtn = document.getElementById('zoom-in');
-    const zoomOutBtn = document.getElementById('zoom-out');
-    const toggleBorder = document.getElementById('toggle-border');
-
-    let trackPoints = []; 
-    let customDataLabels = [];
-    let loadedMapTiles = new Map();
-    let gpxStats = {};
-
-    let offsetX = 0;
-    let offsetY = 0;
-    let userZoom = 1;
-    let isPanning = false;
-    let panStartX = 0, panStartY = 0;
-
-    function recalculateStats() {
-      if (trackPoints.length === 0) return;
-
-      const startTime = trackPoints[0].time;
-      const endTime = trackPoints[trackPoints.length - 1].time;
-      
-      let totalDist = trackPoints[trackPoints.length - 1].dist;
-      let totalEleGain = 0;
-
-      trackPoints.forEach((pt, index) => {
-        if (index > 0) {
-          const eleDiff = pt.ele - trackPoints[index - 1].ele;
-          if (eleDiff > 0) totalEleGain += eleDiff;
-        }
-      });
-
-      let durationStr = "N/A";
-      let dateStr = "N/A";
-
-      if (startTime) {
-        dateStr = startTime.toLocaleDateString('no-NO', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      }
-
-      if (startTime && endTime) {
-        const diffMs = endTime - startTime;
-        const hrs = Math.floor(diffMs / 3600000);
-        const mins = Math.round((diffMs % 3600000) / 60000);
-        durationStr = `${hrs}t ${mins}m`;
-      }
-
-      gpxStats = {
-        date: `DATO: ${dateStr}`,
-        dist: `LENGDE TOTALT: ${(totalDist / 1000).toFixed(2)} KM`,
-        elevationGain: `STIGNING: ${Math.round(totalEleGain)} M`,
-        duration: `TID: ${durationStr}`
-      };
-
-      customDataLabels.forEach(lbl => {
-        const field = lbl.id;
-        const labelSpan = lbl.element.querySelector('.draggable-label');
-        if (labelSpan && gpxStats[field]) {
-          labelSpan.textContent = gpxStats[field];
-        }
-      });
-
-      drawElevationProfile();
-    }
-
-    function showProgress(text, percent) {
-      statusEl.textContent = text;
-      progressBg.style.display = 'block';
-      progressFill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
-    }
-
-    function hideProgress(text = "") {
-      if (text) statusEl.textContent = text;
-      progressBg.style.display = 'none';
-      progressFill.style.width = '0%';
-    }
-
-    function autoExpandTitle() {
-      titleInput.value = titleInput.value.toUpperCase();
-      const len = titleInput.value.length;
-      titleInput.style.width = Math.max(len + 2, 10) + 'ch';
-    }
-    titleInput.addEventListener('input', autoExpandTitle);
-    autoExpandTitle();
-
-    document.getElementById('gpx-input').addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      if (infoOverlay) infoOverlay.style.display = 'none';
-
-      showProgress("Leser GPX-fil...", 10);
-      const reader = new FileReader();
-      reader.onload = (event) => parseGPX(event.target.result);
-      reader.readAsText(file);
-    });
-
-    document.getElementById('download-btn').addEventListener('click', downloadImage);
-
-    document.querySelectorAll('.draggable-element .delete-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        btn.parentElement.style.display = 'none';
-      });
-    });
-
-    toggleBorder.addEventListener('change', updateFrameBorder);
-
-    function updateFrameBorder() {
-      frame.style.border = toggleBorder.checked ? '2px solid #0077b6' : '0px solid transparent';
-    }
-
-    toggleMap.addEventListener('change', () => redrawCanvasAndLines());
-    mapSourceSelect.addEventListener('change', () => {
-      loadedMapTiles.clear();
-      redrawCanvasAndLines();
-    });
-
-    function changeZoom(delta) {
-      userZoom = Math.min(3, Math.max(0.5, userZoom + delta));
-      trackCtx.clearRect(0, 0, trackCanvas.width, trackCanvas.height);
-      redrawCanvasAndLines();
-    }
-
-    zoomInBtn.addEventListener('click', () => changeZoom(0.2));
-    zoomOutBtn.addEventListener('click', () => changeZoom(-0.2));
-
-    frame.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      let delta = e.deltaY < 0 ? 0.1 : -0.1;
-      changeZoom(delta);
-    });
-
-    setupDraggable(titleContainer);
-    setupDraggable(elevationContainer);
-    setupDraggable(coordContainer);
-
-    function setupDraggable(element) {
-      let isDragging = false;
-      let startMouseX = 0, startMouseY = 0;
-      let startPosX = 0, startPosY = 0;
-
-      element.addEventListener('mousedown', (e) => {
-        if (e.target.classList.contains('delete-btn')) return;
-        if (e.target === document.activeElement && e.target.tagName === 'INPUT') return;
-
-        isDragging = true;
-        startMouseX = e.clientX;
-        startMouseY = e.clientY;
-        
-        const rect = element.getBoundingClientRect();
-        const frameRect = frame.getBoundingClientRect();
-        
-        startPosX = rect.left - frameRect.left;
-        startPosY = rect.top - frameRect.top;
-        
-        element.style.transform = 'none';
-        element.style.left = `${startPosX}px`;
-        element.style.top = `${startPosY}px`;
-        element.style.bottom = 'auto';
-        
-        e.stopPropagation();
-      });
-
-      window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        let newX = startPosX + (e.clientX - startMouseX);
-        let newY = startPosY + (e.clientY - startMouseY);
-        element.style.left = `${newX}px`;
-        element.style.top = `${newY}px`;
-      });
-
-      window.addEventListener('mouseup', () => { isDragging = false; });
-    }
-
-    frame.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.draggable-element')) return;
-      isPanning = true;
-      panStartX = e.clientX - offsetX;
-      panStartY = e.clientY - offsetY;
-      frame.classList.add('grabbing');
-    });
-
-    window.addEventListener('mousemove', (e) => {
-      if (!isPanning) return;
-      offsetX = e.clientX - panStartX;
-      offsetY = e.clientY - panStartY;
-      redrawCanvasAndLines();
-    });
-
-    window.addEventListener('mouseup', () => {
-      isPanning = false;
-      frame.classList.remove('grabbing');
-    });
-
-    function parseGPX(xmlText) {
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(xmlText, "text/xml");
-      const trkpts = xml.querySelectorAll("trkpt");
-
-      trackPoints = [];
-      let totalDist = 0;
-      let totalEleGain = 0;
-
-      trkpts.forEach((pt, index) => {
-        const lat = parseFloat(pt.getAttribute("lat"));
-        const lon = parseFloat(pt.getAttribute("lon"));
-        const eleNode = pt.querySelector("ele");
-        const ele = eleNode ? parseFloat(eleNode.textContent) : 0;
-        const timeNode = pt.querySelector("time");
-        const time = timeNode ? new Date(timeNode.textContent) : null;
-
-        if (index > 0) {
-          const prev = trackPoints[index - 1];
-          totalDist += getDistanceMeters(prev.lat, prev.lon, lat, lon);
-          const eleDiff = ele - prev.ele;
-          if (eleDiff > 0) totalEleGain += eleDiff;
+        if (isTouchDevice) {
+            map.zoomControl.setPosition('topleft');
         }
 
-        trackPoints.push({ lat, lon, ele, dist: totalDist, time });
-      });
+        // CARTO Basemap Dark
+        const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2o3a_1_671194bbedbad28841272141', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20,
+            crossOrigin: true
+        }).addTo(map);
 
-      offsetX = 0;
-      offsetY = 0;
+        const loadedTracks = [];
 
-      if (trackPoints.length > 0) {
-        recalculateStats();
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('btn-upload-trigger');
+        const resetBtn = document.getElementById('btn-reset');
+        const peaksBtn = document.getElementById('btn-toggle-peaks');
+        const lineStyleSelect = document.getElementById('line-style');
+        const downloadImageBtn = document.getElementById('btn-download-image');
+        const infoBanner = document.getElementById('info-banner');
+        const cropBox = document.getElementById('crop-box');
+        const exportModal = document.getElementById('export-modal');
+        const modalConfirm = document.getElementById('modal-confirm');
+        const modalCancel = document.getElementById('modal-cancel');
 
-        const startPt = trackPoints[0];
-        coordText.textContent = `${startPt.lat.toFixed(5)}° N, ${startPt.lon.toFixed(5)}° E`;
-        coordContainer.style.display = 'inline-flex';
+        const peaksCanvas = document.getElementById('peaks-canvas-layer');
+        const peaksCtx = peaksCanvas.getContext('2d');
+        const labelsLayer = document.getElementById('labels-layer');
 
-        elevationContainer.style.display = 'flex';
-        redrawCanvasAndLines();
-        hideProgress("Spor lastet inn!");
-      } else {
-        hideProgress("Ingen gyldige spor-punkter funnet.");
-      }
-    }
+        let peaksEnabled = false;
+        let detectedPeaks = [];
+        let isFetchingPeaks = false;
 
-    document.querySelectorAll('.data-field-toggle').forEach(chk => {
-      chk.addEventListener('change', (e) => {
-        const field = e.target.getAttribute('data-field');
-        if (e.target.checked) {
-          createCustomDataLabel(field, gpxStats[field] || '');
-        } else {
-          removeCustomDataLabel(field);
+        // Tilpass canvas-størrelse til vinduet
+        function resizeCanvas() {
+            peaksCanvas.width = window.innerWidth;
+            peaksCanvas.height = window.innerHeight;
+            redrawPeakLines();
         }
-      });
-    });
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
 
-    function createCustomDataLabel(field, text) {
-      if (document.getElementById(`label-${field}`)) return;
+        uploadBtn.addEventListener('click', () => fileInput.click());
 
-      const labelContainer = document.createElement('div');
-      labelContainer.className = 'draggable-element';
-      labelContainer.id = `label-${field}`;
-      
-      labelContainer.innerHTML = `
-        <span class="draggable-label" style="color: #0077b6;">${text}</span>
-        <span class="delete-btn" title="Slett">×</span>
-      `;
+        fileInput.addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
 
-      let pos = { x: 40, y: 50 + customDataLabels.length * 28 };
-      labelContainer.style.left = `${pos.x}px`;
-      labelContainer.style.top = `${pos.y}px`;
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    lesOgLeggTilGpx(evt.target.result, file.name);
+                };
+                reader.readAsText(file);
+            });
 
-      labelsLayer.appendChild(labelContainer);
+            fileInput.value = '';
+        });
 
-      customDataLabels.push({ id: field, element: labelContainer });
-      setupDraggable(labelContainer);
+        function lesOgLeggTilGpx(gpxData, fileTitle) {
+            const track = new L.GPX(gpxData, {
+                async: true,
+                polyline_options: {
+                    color: '#ffffff',
+                    opacity: 0.6,
+                    weight: 2.5,
+                    lineCap: 'round'
+                },
+                marker_options: { startIconUrl: null, endIconUrl: null, shadowUrl: null }
+            });
 
-      labelContainer.querySelector('.delete-btn').addEventListener('click', () => {
-        removeCustomDataLabel(field);
-        const chk = document.querySelector(`.data-field-toggle[data-field="${field}"]`);
-        if (chk) chk.checked = false;
-      });
-    }
+            track.on('loaded', function(e) {
+                const layer = e.target;
+                const trackBounds = layer.getBounds();
 
-    function removeCustomDataLabel(field) {
-      const el = document.getElementById(`label-${field}`);
-      if (el) el.remove();
-      customDataLabels = customDataLabels.filter(item => item.id !== field);
-    }
+                if (!trackBounds.isValid()) return;
 
-    function getDistanceMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371000;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
+                loadedTracks.push(layer);
 
-    function getTransformationParams(customWidth = mapCanvas.width, customHeight = mapCanvas.height) {
-      let minLat = Infinity, maxLat = -Infinity;
-      let minLon = Infinity, maxLon = -Infinity;
+                const trackName = layer.get_name() || fileTitle.replace('.gpx', '');
 
-      trackPoints.forEach(p => {
-        if (p.lat < minLat) minLat = p.lat;
-        if (p.lat > maxLat) maxLat = p.lat;
-        if (p.lon < minLon) minLon = p.lon;
-        if (p.lon > maxLon) maxLon = p.lon;
-      });
+                if (!isTouchDevice) {
+                    layer.bindTooltip(`<b>${trackName}</b>`, {
+                        sticky: true,
+                        direction: 'top',
+                        offset: [0, -10]
+                    });
 
-      const latSpan = maxLat - minLat || 0.005;
-      const lonSpan = maxLon - minLon || 0.005;
-      const cosLat = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
-      const maxSpan = Math.max(latSpan, lonSpan * cosLat);
-      const scale = ((customWidth * 0.52) / maxSpan) * userZoom;
-      const centerLat = (minLat + maxLat) / 2;
-      const centerLon = (minLon + maxLon) / 2;
+                    layer.on('mouseover', function() {
+                        layer.setStyle({ color: 'var(--highlight-orange)', weight: 4.0, opacity: 1.0 });
+                        layer.bringToFront();
+                    });
 
-      return { scale, centerLat, centerLon, cosLat };
-    }
+                    layer.on('mouseout', function() {
+                        layer.setStyle({ color: '#ffffff', weight: 2.5, opacity: 0.6 });
+                    });
+                }
 
-    function toCanvasCoords(lat, lon, customWidth = mapCanvas.width, customHeight = mapCanvas.height, scaleFactor = 1) {
-      const { scale, centerLat, centerLon, cosLat } = getTransformationParams(customWidth, customHeight);
-      return {
-        x: customWidth / 2 + (lon - centerLon) * cosLat * scale + (offsetX * scaleFactor),
-        y: (customHeight / 2 - (10 * scaleFactor)) - (lat - centerLat) * scale + (offsetY * scaleFactor)
-      };
-    }
+                layer.on('click', function() {
+                    layer.setStyle({ color: 'var(--highlight-orange)', weight: 4.0, opacity: 1.0 });
+                    map.fitBounds(trackBounds, { padding: [100, 100] });
+                });
 
-    function lon2tile(lon, zoom) { return (lon + 180) / 360 * Math.pow(2, zoom); }
-    function lat2tile(lat, zoom) { return (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom); }
+                const center = trackBounds.getCenter();
+                const distFraStart = map.distance(center, L.latLng(START_LAT, START_LON));
 
-    function getTileUrl(source, zoom, x, y) {
-      switch(source) {
-        case 'carto_voyager':
-          return `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png?key=${apiKey}`;
-        case 'carto_positron':
-          return `https://basemaps.cartocdn.com/light_nolabels/${zoom}/${x}/${y}.png?key=${apiKey}`;
-        case 'kartverket_topo':
-          return `https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/${zoom}/${y}/${x}.png`;
-        case 'opentopo':
-          return `https://tile.opentopomap.org/${zoom}/${x}/${y}.png`;
-        case 'osm':
-          return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
-        case 'esri_sat':
-          return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${x}`;
-        default:
-          return `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png?key=${apiKey}`;
-      }
-    }
+                if (distFraStart > 80000) {
+                    map.setView(center, 7);
+                }
 
-    function loadTileAsync(key, url, cacheMap) {
-      return new Promise((resolve) => {
-        if (cacheMap.has(key)) {
-          const tileData = cacheMap.get(key);
-          if (tileData.loaded) return resolve(tileData);
+                if (peaksEnabled) {
+                    fetchPeaksForCurrentView();
+                }
+            });
+
+            track.addTo(map);
         }
-        const img = new Image();
-        img.crossOrigin = "Anonymous";
-        const tileData = { img: img, loaded: false, error: false };
-        cacheMap.set(key, tileData);
-        img.onload = () => { tileData.loaded = true; resolve(tileData); };
-        img.onerror = () => { tileData.loaded = true; tileData.error = true; resolve(tileData); };
-        img.src = url;
-      });
-    }
 
-    function drawMapTiles() {
-      mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+        // --- FJELLTOPP-FUNKSJONALITET (Hentet kode fra index-9.html) ---
 
-      if (!toggleMap.checked || trackPoints.length === 0) return;
-
-      const { scale, centerLat, centerLon, cosLat } = getTransformationParams();
-      const zoom = Math.min(15, Math.max(8, Math.floor(12 + Math.log2(userZoom))));
-
-      const minX = Math.floor(lon2tile(centerLon - (mapCanvas.width / (2 * scale * cosLat)), zoom));
-      const maxX = Math.floor(lon2tile(centerLon + (mapCanvas.width / (2 * scale * cosLat)), zoom));
-      const minY = Math.floor(lat2tile(centerLat + (mapCanvas.height / (2 * scale)), zoom));
-      const maxY = Math.floor(lat2tile(centerLat - (mapCanvas.height / (2 * scale)), zoom));
-
-      const selectedSource = mapSourceSelect.value;
-
-      for (let x = minX - 1; x <= maxX + 1; x++) {
-        for (let y = minY - 1; y <= maxY + 1; y++) {
-          const key = `${selectedSource}/${zoom}/${x}/${y}`;
-
-          if (!loadedMapTiles.has(key)) {
-            const img = new Image();
-            img.crossOrigin = "Anonymous";
-            const tileData = { img: img, loaded: false, error: false };
-            loadedMapTiles.set(key, tileData);
-
-            img.onload = () => { tileData.loaded = true; redrawCanvasAndLines(); };
-            img.onerror = () => { tileData.loaded = true; tileData.error = true; redrawCanvasAndLines(); };
-            img.src = getTileUrl(selectedSource, zoom, x, y);
-          }
-
-          const tileData = loadedMapTiles.get(key);
-          if (tileData && tileData.loaded && !tileData.error) {
-            const n = Math.pow(2, zoom);
-            const tileLon = x / n * 360 - 180;
-            const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
-            const tileLat = latRad * 180 / Math.PI;
-
-            const pos = toCanvasCoords(tileLat, tileLon);
-            const tileSize = (360 / n) * cosLat * scale;
-
-            mapCtx.drawImage(tileData.img, pos.x, pos.y, tileSize + 0.5, tileSize + 0.5);
-          }
-        }
-      }
-
-      mapCtx.font = "8px sans-serif";
-      mapCtx.fillStyle = "rgba(0,0,0,0.4)";
-      mapCtx.textAlign = "right";
-      mapCtx.fillText("© Kartverket / OpenTopoMap / OpenStreetMap / Esri / CARTO", mapCanvas.width - 10, mapCanvas.height - 10);
-    }
-
-    function redrawCanvasAndLines() {
-      if (trackPoints.length === 0) return;
-
-      trackCtx.clearRect(0, 0, trackCanvas.width, trackCanvas.height);
-      drawMapTiles();
-
-      trackCtx.beginPath();
-      trackCtx.strokeStyle = "#0077b6";
-      trackCtx.lineWidth = 2.5;
-      trackPoints.forEach((p, index) => {
-        const pt = toCanvasCoords(p.lat, p.lon);
-        if (index === 0) trackCtx.moveTo(pt.x, pt.y);
-        else trackCtx.lineTo(pt.x, pt.y);
-      });
-      trackCtx.stroke();
-    }
-
-    function drawElevationProfileOnCanvas(targetCtx, scaleFactor = 1) {
-      if (trackPoints.length === 0) return;
-
-      const w = 292 * scaleFactor;
-      const h_total = 60 * scaleFactor;
-
-      targetCtx.clearRect(0, 0, w, h_total);
-
-      let maxEle = -Infinity, minEle = Infinity;
-      let maxPt = null;
-
-      trackPoints.forEach(p => {
-        if (p.ele > maxEle) { maxEle = p.ele; maxPt = p; }
-        if (p.ele < minEle) minEle = p.ele;
-      });
-
-      const totalDistance = trackPoints[trackPoints.length - 1].dist;
-      if (totalDistance <= 0 || maxEle === minEle) return;
-
-      const eleSpan = maxEle - minEle || 1;
-      const padding = 12 * scaleFactor;
-      const h = h_total - padding;
-
-      function getProfileX(dist) { return (dist / totalDistance) * w; }
-      function getProfileY(ele) { return h - ((ele - minEle) / eleSpan) * (h - (10 * scaleFactor)) + padding; }
-
-      targetCtx.beginPath();
-      targetCtx.strokeStyle = "#0077b6";
-      targetCtx.lineWidth = 1.5 * scaleFactor;
-
-      trackPoints.forEach((p, index) => {
-        const px = getProfileX(p.dist);
-        const py = getProfileY(p.ele);
-        if (index === 0) targetCtx.moveTo(px, py);
-        else targetCtx.lineTo(px, py);
-      });
-      targetCtx.stroke();
-
-      if (maxPt) {
-        const peakX = getProfileX(maxPt.dist);
-        const peakY = getProfileY(maxPt.ele);
-
-        targetCtx.beginPath();
-        targetCtx.arc(peakX, peakY, 3 * scaleFactor, 0, Math.PI * 2);
-        targetCtx.fillStyle = "#0077b6";
-        targetCtx.fill();
-
-        targetCtx.font = `bold ${9 * scaleFactor}px -apple-system, BlinkMacSystemFont, sans-serif`;
-        targetCtx.fillStyle = "#0077b6";
-        targetCtx.textAlign = "center";
-        targetCtx.fillText(`MAKS ${Math.round(maxEle)}m`, peakX, peakY - (5 * scaleFactor));
-      }
-    }
-
-    function drawElevationProfile() {
-      eleCanvas.width = 292;
-      eleCanvas.height = 60;
-      drawElevationProfileOnCanvas(eleCtx, 1);
-    }
-
-    async function downloadImage() {
-      if (trackPoints.length === 0) {
-        alert("Last opp en GPX-fil først!");
-        return;
-      }
-
-      showProgress("Genererer bilde...", 10);
-
-      const scaleFactor = parseFloat(exportScaleSelect.value);
-      const exportWidth = mapCanvas.width * scaleFactor;
-      const exportHeight = mapCanvas.height * scaleFactor;
-
-      const finalCanvas = document.createElement('canvas');
-      finalCanvas.width = exportWidth;
-      finalCanvas.height = exportHeight;
-      const finalCtx = finalCanvas.getContext('2d');
-
-      finalCtx.fillStyle = "#ffffff";
-      finalCtx.fillRect(0, 0, exportWidth, exportHeight);
-
-      const { scale, centerLat, centerLon, cosLat } = getTransformationParams(exportWidth, exportHeight);
-      const baseZoom = Math.min(15, Math.max(8, Math.floor(12 + Math.log2(userZoom))));
-      const zoom = Math.min(18, baseZoom + Math.floor(scaleFactor / 2));
-
-      const minX = Math.floor(lon2tile(centerLon - (exportWidth / (2 * scale * cosLat)), zoom));
-      const maxX = Math.floor(lon2tile(centerLon + (exportWidth / (2 * scale * cosLat)), zoom));
-      const minY = Math.floor(lat2tile(centerLat + (exportHeight / (2 * scale)), zoom));
-      const maxY = Math.floor(lat2tile(centerLat - (exportHeight / (2 * scale)), zoom));
-
-      const selectedSource = mapSourceSelect.value;
-      const promises = [];
-
-      for (let x = minX - 1; x <= maxX + 1; x++) {
-        for (let y = minY - 1; y <= maxY + 1; y++) {
-          if (toggleMap.checked) {
-            promises.push(loadTileAsync(`${selectedSource}/${zoom}/${x}/${y}`, getTileUrl(selectedSource, zoom, x, y), loadedMapTiles));
-          }
-        }
-      }
-
-      await Promise.all(promises);
-
-      // 1. Bakgrunnskart
-      if (toggleMap.checked) {
-        for (let x = minX - 1; x <= maxX + 1; x++) {
-          for (let y = minY - 1; y <= maxY + 1; y++) {
-            const key = `${selectedSource}/${zoom}/${x}/${y}`;
-            const tileData = loadedMapTiles.get(key);
-            if (tileData && tileData.loaded && !tileData.error) {
-              const n = Math.pow(2, zoom);
-              const tileLon = x / n * 360 - 180;
-              const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
-              const tileLat = latRad * 180 / Math.PI;
-
-              const pos = toCanvasCoords(tileLat, tileLon, exportWidth, exportHeight, scaleFactor);
-              const tileSize = (360 / n) * cosLat * scale;
-
-              finalCtx.drawImage(tileData.img, pos.x, pos.y, tileSize + 1, tileSize + 1);
+        peaksBtn.addEventListener('click', () => {
+            peaksEnabled = !peaksEnabled;
+            peaksBtn.classList.toggle('active', peaksEnabled);
+            if (peaksEnabled) {
+                fetchPeaksForCurrentView();
+            } else {
+                clearPeaks();
             }
-          }
+        });
+
+        map.on('moveend zoomend', () => {
+            if (peaksEnabled) {
+                fetchPeaksForCurrentView();
+            } else {
+                updatePeakPositions();
+            }
+        });
+
+        map.on('move zoom', () => {
+            updatePeakPositions();
+        });
+
+        lineStyleSelect.addEventListener('change', () => redrawPeakLines());
+
+        function clearPeaks() {
+            detectedPeaks.forEach(p => p.element.remove());
+            detectedPeaks = [];
+            peaksCtx.clearRect(0, 0, peaksCanvas.width, peaksCanvas.height);
         }
-      }
 
-      // 2. Sporlinje
-      finalCtx.beginPath();
-      finalCtx.strokeStyle = "#0077b6";
-      finalCtx.lineWidth = 2.5 * scaleFactor;
-      trackPoints.forEach((p, index) => {
-        const pt = toCanvasCoords(p.lat, p.lon, exportWidth, exportHeight, scaleFactor);
-        if (index === 0) finalCtx.moveTo(pt.x, pt.y);
-        else finalCtx.lineTo(pt.x, pt.y);
-      });
-      finalCtx.stroke();
+        async function fetchPeaksForCurrentView() {
+            if (isFetchingPeaks) return;
+            isFetchingPeaks = true;
 
-      // 3. Tekst, Tittel og Høydekurve
-      const frameRect = frame.getBoundingClientRect();
+            const bounds = map.getBounds();
+            const minLat = bounds.getSouth();
+            const maxLat = bounds.getNorth();
+            const minLon = bounds.getWest();
+            const maxLon = bounds.getEast();
 
-      if (titleContainer.style.display !== 'none') {
-        const rect = titleContainer.getBoundingClientRect();
-        const x = (rect.left - frameRect.left + (rect.width / 2)) * scaleFactor;
-        const y = (rect.top - frameRect.top + 16) * scaleFactor;
-        finalCtx.font = `800 ${18 * scaleFactor}px -apple-system, BlinkMacSystemFont, sans-serif`;
-        finalCtx.fillStyle = "#0077b6";
-        finalCtx.textAlign = "center";
-        finalCtx.fillText(titleInput.value.toUpperCase(), x, y);
-      }
+            let peaks = [];
 
-      if (elevationContainer.style.display !== 'none') {
-        const rect = elevationContainer.getBoundingClientRect();
-        const x = (rect.left - frameRect.left) * scaleFactor;
-        const y = (rect.top - frameRect.top) * scaleFactor;
+            try {
+                const url = `https://ws.geonorge.no/stedsnavn/v1/punkt?nordmin=${minLat}&nordmaks=${maxLat}&ostmin=${minLon}&ostmaks=${maxLon}&navneobjekttype=Fjell*&maxAntall=50`;
+                const res = await fetch(url);
+                if (res.ok) {
+                    const json = await res.json();
+                    peaks = parseKartverketGeonorge(json);
+                }
+            } catch (err) {
+                console.warn("Kartverket API feilet, prøver Overpass fallback...", err);
+            }
 
-        const tempEleCanvas = document.createElement('canvas');
-        tempEleCanvas.width = 292 * scaleFactor;
-        tempEleCanvas.height = 60 * scaleFactor;
-        const tempEleCtx = tempEleCanvas.getContext('2d');
-        
-        drawElevationProfileOnCanvas(tempEleCtx, scaleFactor);
-        finalCtx.drawImage(tempEleCanvas, x, y);
-      }
+            if (peaks.length === 0) {
+                try {
+                    const overpassQuery = `[out:json];node["natural"="peak"](${minLat},${minLon},${maxLat},${maxLon});out;`;
+                    const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`);
+                    if (res.ok) {
+                        const json = await res.json();
+                        peaks = parseOverpass(json);
+                    }
+                } catch (err) {
+                    console.error("Overpass API feilet:", err);
+                }
+            }
 
-      if (coordContainer.style.display !== 'none') {
-        const rect = coordContainer.getBoundingClientRect();
-        const x = (rect.left - frameRect.left + (rect.width / 2)) * scaleFactor;
-        const y = (rect.top - frameRect.top + 12) * scaleFactor;
-        finalCtx.font = `600 ${10 * scaleFactor}px -apple-system, BlinkMacSystemFont, sans-serif`;
-        finalCtx.fillStyle = "#0077b6";
-        finalCtx.textAlign = "center";
-        finalCtx.fillText(coordText.textContent, x, y);
-      }
+            renderPeaks(peaks);
+            isFetchingPeaks = false;
+        }
 
-      customDataLabels.forEach(lbl => {
-        const rect = lbl.element.getBoundingClientRect();
-        const x = (rect.left - frameRect.left + 4) * scaleFactor;
-        const y = (rect.top - frameRect.top + 12) * scaleFactor;
-        const text = lbl.element.querySelector('.draggable-label').textContent;
-        finalCtx.font = `bold ${11 * scaleFactor}px -apple-system, BlinkMacSystemFont, sans-serif`;
-        finalCtx.fillStyle = "#0077b6";
-        finalCtx.textAlign = "left";
-        finalCtx.fillText(text, x, y);
-      });
+        function parseKartverketGeonorge(data) {
+            if (!data || !data.navn) return [];
+            return data.navn.map(item => ({
+                name: item.stedsnavn?.[0]?.skrivemåte || item.stedsnavn,
+                lat: item.representasjonspunkt?.nord,
+                lon: item.representasjonspunkt?.øst,
+                elevation: item.meterOverHavet || item.stedsnavn?.[0]?.meterOverHavet
+            })).filter(p => p.name && p.lat && p.lon);
+        }
 
-      // 4. Ramme
-      if (toggleBorder.checked) {
-        finalCtx.strokeStyle = "#0077b6";
-        finalCtx.lineWidth = 4 * scaleFactor;
-        finalCtx.strokeRect(0, 0, exportWidth, exportHeight);
-      }
+        function parseOverpass(data) {
+            if (!data || !data.elements) return [];
+            return data.elements.map(el => ({
+                name: el.tags?.name || "Ukjent topp",
+                lat: el.lat,
+                lon: el.lon,
+                elevation: el.tags?.ele ? parseInt(el.tags.ele) : null
+            }));
+        }
 
-      hideProgress();
+        function renderPeaks(apiPeaks) {
+            clearPeaks();
+            const addedNames = new Set();
 
-      const link = document.createElement('a');
-      link.download = `gpx-spor-${exportWidth}x${exportHeight}.png`;
-      link.href = finalCanvas.toDataURL('image/png');
-      link.click();
-    }
-  </script>
+            apiPeaks.forEach(peak => {
+                if (addedNames.has(peak.name)) return;
+                addedNames.add(peak.name);
+                createPeakAnnotation(peak);
+            });
+
+            redrawPeakLines();
+        }
+
+        function createPeakAnnotation(peak) {
+            const labelContainer = document.createElement('div');
+            labelContainer.className = 'draggable-element';
+            
+            const heightText = peak.elevation ? ` ${peak.elevation}m` : '';
+            labelContainer.innerHTML = `
+                <span class="draggable-label">${peak.name.toUpperCase()}${heightText}</span>
+                <span class="delete-btn" title="Fjern">×</span>
+            `;
+
+            let relX = 25;
+            let relY = -20;
+
+            labelsLayer.appendChild(labelContainer);
+
+            const peakData = {
+                id: Date.now() + Math.random(),
+                lat: peak.lat,
+                lon: peak.lon,
+                relX: relX,
+                relY: relY,
+                element: labelContainer
+            };
+
+            const pt = map.latLngToContainerPoint([peak.lat, peak.lon]);
+            labelContainer.style.left = `${pt.x + relX}px`;
+            labelContainer.style.top = `${pt.y + relY}px`;
+
+            labelContainer.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                labelContainer.remove();
+                detectedPeaks = detectedPeaks.filter(p => p.id !== peakData.id);
+                redrawPeakLines();
+            });
+
+            detectedPeaks.push(peakData);
+            makePeakDraggable(labelContainer, peakData);
+        }
+
+        function updatePeakPositions() {
+            detectedPeaks.forEach(p => {
+                const pt = map.latLngToContainerPoint([p.lat, p.lon]);
+                p.element.style.left = `${pt.x + p.relX}px`;
+                p.element.style.top = `${pt.y + p.relY}px`;
+            });
+            redrawPeakLines();
+        }
+
+        function makePeakDraggable(element, data) {
+            let isDragging = false;
+            let startMouseX = 0, startMouseY = 0;
+            let startRelX = 0, startRelY = 0;
+
+            element.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('delete-btn')) return;
+                isDragging = true;
+                startMouseX = e.clientX;
+                startMouseY = e.clientY;
+                startRelX = data.relX;
+                startRelY = data.relY;
+                e.stopPropagation();
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                data.relX = startRelX + (e.clientX - startMouseX);
+                data.relY = startRelY + (e.clientY - startMouseY);
+                updatePeakPositions();
+            });
+
+            window.addEventListener('mouseup', () => { isDragging = false; });
+        }
+
+        function redrawPeakLines() {
+            peaksCtx.clearRect(0, 0, peaksCanvas.width, peaksCanvas.height);
+            if (detectedPeaks.length === 0) return;
+
+            const style = lineStyleSelect.value;
+            const lineColor = "#00d2ff";
+
+            detectedPeaks.forEach(p => {
+                const anchor = map.latLngToContainerPoint([p.lat, p.lon]);
+
+                peaksCtx.beginPath();
+                peaksCtx.arc(anchor.x, anchor.y, 3.5, 0, Math.PI * 2);
+                peaksCtx.fillStyle = lineColor;
+                peaksCtx.fill();
+
+                const labelHeight = p.element.offsetHeight || 15;
+                const targetX = anchor.x + p.relX;
+                const targetY = anchor.y + p.relY + (labelHeight / 2);
+
+                peaksCtx.beginPath();
+                peaksCtx.setLineDash([3, 3]);
+                peaksCtx.strokeStyle = lineColor;
+                peaksCtx.lineWidth = 1.2;
+
+                if (style === 'arc') {
+                    const cpX = anchor.x + p.relX * 0.8;
+                    const cpY = anchor.y;
+                    peaksCtx.moveTo(anchor.x, anchor.y);
+                    peaksCtx.quadraticCurveTo(cpX, cpY, targetX, targetY);
+                } else {
+                    peaksCtx.moveTo(anchor.x, anchor.y);
+                    peaksCtx.lineTo(targetX, anchor.y);
+                    peaksCtx.lineTo(targetX, targetY);
+                }
+
+                peaksCtx.stroke();
+                peaksCtx.setLineDash([]);
+            });
+        }
+
+        // --- HELT NY FUNKSJONALITET: OMRAADEMARKERING OG BILDEEKSPORT ---
+
+        let isSelectionMode = false;
+        let isSelecting = false;
+        let selectionStart = { x: 0, y: 0 };
+        let selectionEnd = { x: 0, y: 0 };
+
+        downloadImageBtn.addEventListener('click', () => {
+            isSelectionMode = true;
+            infoBanner.style.display = 'block';
+            map.dragging.disable();
+            map.getContainer().style.cursor = 'crosshair';
+        });
+
+        const mapDiv = document.getElementById('map-container');
+
+        mapDiv.addEventListener('mousedown', (e) => {
+            if (!isSelectionMode) return;
+            if (e.target.closest('header') || e.target.closest('.draggable-element') || e.target.closest('#export-modal')) return;
+
+            isSelecting = true;
+            const rect = mapDiv.getBoundingClientRect();
+            selectionStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            selectionEnd = { ...selectionStart };
+
+            cropBox.style.left = `${selectionStart.x}px`;
+            cropBox.style.top = `${selectionStart.y}px`;
+            cropBox.style.width = '0px';
+            cropBox.style.height = '0px';
+            cropBox.style.display = 'block';
+        });
+
+        mapDiv.addEventListener('mousemove', (e) => {
+            if (!isSelecting) return;
+            const rect = mapDiv.getBoundingClientRect();
+            selectionEnd = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+            const x = Math.min(selectionStart.x, selectionEnd.x);
+            const y = Math.min(selectionStart.y, selectionEnd.y);
+            const w = Math.abs(selectionStart.x - selectionEnd.x);
+            const h = Math.abs(selectionStart.y - selectionEnd.y);
+
+            cropBox.style.left = `${x}px`;
+            cropBox.style.top = `${y}px`;
+            cropBox.style.width = `${w}px`;
+            cropBox.style.height = `${h}px`;
+        });
+
+        mapDiv.addEventListener('mouseup', () => {
+            if (!isSelecting) return;
+            isSelecting = false;
+            isSelectionMode = false;
+            infoBanner.style.display = 'none';
+            map.dragging.enable();
+            map.getContainer().style.cursor = '';
+
+            const w = Math.abs(selectionStart.x - selectionEnd.x);
+            const h = Math.abs(selectionStart.y - selectionEnd.y);
+
+            if (w < 20 || h < 20) {
+                cropBox.style.display = 'none';
+                alert('For lite område valgt. Marker på nytt.');
+                return;
+            }
+
+            // Åpne modal for kvalitet
+            exportModal.style.display = 'flex';
+        });
+
+        modalCancel.addEventListener('click', () => {
+            exportModal.style.display = 'none';
+            cropBox.style.display = 'none';
+        });
+
+        modalConfirm.addEventListener('click', () => {
+            exportModal.style.display = 'none';
+            const scale = parseFloat(document.getElementById('export-quality').value);
+            generateAndDownloadImage(scale);
+            cropBox.style.display = 'none';
+        });
+
+        async function generateAndDownloadImage(scale) {
+            const cropX = Math.min(selectionStart.x, selectionEnd.x);
+            const cropY = Math.min(selectionStart.y, selectionEnd.y);
+            const cropW = Math.abs(selectionStart.x - selectionEnd.x);
+            const cropH = Math.abs(selectionStart.y - selectionEnd.y);
+
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = cropW * scale;
+            exportCanvas.height = cropH * scale;
+            const ctx = exportCanvas.getContext('2d');
+
+            ctx.scale(scale, scale);
+
+            // 1. Tegn bakgrunnsfarge
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, cropW, cropH);
+
+            // 2. Tegn Leaflet kartfliser (CARTO)
+            const tiles = document.querySelectorAll('.leaflet-tile-container img');
+            const mapRect = mapDiv.getBoundingClientRect();
+
+            for (let tile of tiles) {
+                const tileRect = tile.getBoundingClientRect();
+                const x = tileRect.left - mapRect.left - cropX;
+                const y = tileRect.top - mapRect.top - cropY;
+
+                try {
+                    const img = new Image();
+                    img.crossOrigin = 'Anonymous';
+                    await new Promise((resolve) => {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                        img.src = tile.src;
+                    });
+                    if (img.complete && img.naturalWidth !== 0) {
+                        ctx.drawImage(img, x, y, tileRect.width, tileRect.height);
+                    }
+                } catch (e) {
+                    console.warn("Kunne ikke tegne kartflis", e);
+                }
+            }
+
+            // 3. Tegn GPX-sporene (Polyline vector-lag)
+            const svgLayer = document.querySelector('.leaflet-overlay-pane svg');
+            if (svgLayer) {
+                const svgRect = svgLayer.getBoundingClientRect();
+                const svgX = svgRect.left - mapRect.left - cropX;
+                const svgY = svgRect.top - mapRect.top - cropY;
+
+                const svgString = new XMLSerializer().serializeToString(svgLayer);
+                const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(svgBlob);
+
+                const svgImg = new Image();
+                await new Promise((resolve) => {
+                    svgImg.onload = resolve;
+                    svgImg.onerror = resolve;
+                    svgImg.src = url;
+                });
+                ctx.drawImage(svgImg, svgX, svgY, svgRect.width, svgRect.height);
+                URL.revokeObjectURL(url);
+            }
+
+            // 4. Tegn Fjelltopper (linjer og punkter)
+            ctx.drawImage(peaksCanvas, -cropX, -cropY);
+
+            // 5. Tegn Fjelltopp-tekster (DOM-elementer)
+            detectedPeaks.forEach(p => {
+                const rect = p.element.getBoundingClientRect();
+                const x = rect.left - mapRect.left - cropX;
+                const y = rect.top - mapRect.top - cropY;
+
+                if (x + rect.width > 0 && x < cropW && y + rect.height > 0 && y < cropH) {
+                    const text = p.element.querySelector('.draggable-label').textContent;
+                    ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+                    
+                    // Bakgrunn for tekst
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+                    ctx.fillRect(x, y, rect.width, rect.height);
+
+                    // Tekst
+                    ctx.fillStyle = '#00d2ff';
+                    ctx.fillText(text, x + 6, y + 13);
+                }
+            });
+
+            // Last ned fil
+            const link = document.createElement('a');
+            link.download = `kart-utsnitt-${Math.round(cropW * scale)}x${Math.round(cropH * scale)}.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Nullstill-knapp
+        resetBtn.addEventListener('click', function() {
+            loadedTracks.forEach(layer => map.removeLayer(layer));
+            loadedTracks.length = 0;
+            clearPeaks();
+            peaksEnabled = false;
+            peaksBtn.classList.remove('active');
+            map.setView([START_LAT, START_LON], START_ZOOM);
+        });
+    </script>
 </body>
 </html>
