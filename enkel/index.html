@@ -95,9 +95,10 @@
         }
 
         .btn-toggle.active {
-            background: #fc4c02;
-            border-color: #fc4c02;
-            color: #fff;
+            background: #ffffff;
+            border-color: #ffffff;
+            color: #111;
+            font-weight: 600;
         }
 
         .btn-reset {
@@ -193,7 +194,7 @@
             background: rgba(0, 0, 0, 0.75);
             padding: 2px 6px;
             border-radius: 3px;
-            border: 1px solid rgba(252, 76, 2, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .draggable-label {
@@ -202,7 +203,7 @@
             letter-spacing: 0.5px;
             white-space: nowrap;
             text-transform: uppercase;
-            color: #fc4c02;
+            color: #ffffff;
         }
 
         .delete-btn {
@@ -376,8 +377,8 @@
         </div>
     </header>
 
-    <!-- Kun én fil tillates og filtreres på .gpx -->
-    <input type="file" id="file-input" accept=".gpx,application/gpx+xml" />
+    <!-- Filtrering i operativsystemets filvelger -->
+    <input type="file" id="file-input" accept=".gpx" />
 
     <div id="info-banner">Marker området du vil ta bilde av (klikk og dra)</div>
 
@@ -390,11 +391,10 @@
         <div id="help-info-box">
             <h4>Funksjonalitet <span id="close-help-btn" title="Lukk">×</span></h4>
             <ul>
-                <li><b>Last opp GPX:</b> Velg én GPX-fil. Sporet legges inn og vises i oversiktskartet.</li>
-                <li><b>Zoom og verktøy:</b> Klikk direkte på sporet for å zoome inn og tippe frem Fjelltopp-knappen og linjestiler.</li>
-                <li><b>Fjelltopper:</b> Slå på «Fjelltopper» for å vise topper i området med samme oransje farge som sporet.</li>
-                <li><b>Interaktive etiketter:</b> Flytt stedsnavnene på skjermen, endre linjestil eller slett dem med ×.</li>
-                <li><b>Last ned bilde:</b> Marker et utsnitt på kartet og ta bilde i opptil 4K-kvalitet.</li>
+                <li><b>Last opp GPX:</b> Velg en GPX-fil. Sporet legges inn og vises slik at det utgjør ca. 8% av oversikten.</li>
+                <li><b>Gå inn på sporet:</b> Før musen over sporet for å utheve det, og klikk for å zoome inn slik at sporet dekker 80% av skjermen.</li>
+                <li><b>Fjelltopper:</b> Trykk «Fjelltopper» for å hente topper i utsnittet. Toppene låses på kartet. Skru AV for å tømme cachen før du henter nye topper.</li>
+                <li><b>Etiketter &amp; Eksport:</b> Dra etiketter, endre linjestil eller marker kartsnitt for bilde-nedlasting.</li>
             </ul>
         </div>
     </div>
@@ -487,27 +487,36 @@
             const files = e.target.files;
             if (!files || files.length === 0) return;
 
+            const file = files[0];
+
+            // Validering i JS for at det KUN skal være GPX
+            if (!file.name.toLowerCase().endsWith('.gpx')) {
+                alert('Vennligst velg en gyldig .gpx-fil.');
+                return;
+            }
+
             helpInfoBox.style.display = 'none';
-            lesOgLeggTilGpx(files[0]);
+            lesOgLeggTilGpx(file);
         });
 
         function lesOgLeggTilGpx(file) {
             const reader = new FileReader();
             reader.onload = function(evt) {
-                // Fjern eksisterende spor om det finnes fra før
                 if (activeTrackLayer) {
                     map.removeLayer(activeTrackLayer);
                     activeTrackLayer = null;
                 }
                 
                 clearPeaks();
+                peaksEnabled = false;
+                peaksBtn.classList.remove('active');
                 trackTools.classList.remove('visible');
 
                 const track = new L.GPX(evt.target.result, {
                     async: true,
                     polyline_options: {
                         color: '#ffffff',
-                        opacity: 0.9,
+                        opacity: 0.95,
                         weight: 3.5,
                         lineCap: 'round'
                     },
@@ -531,24 +540,29 @@
                         });
                     }
 
-                    // Når brukeren klikker på sporet -> Zoom inn og vis verktøy
+                    // Tykkere strek på mouseover slik at det kan klikkes enkelt
+                    layer.on('mouseover', function() {
+                        layer.setStyle({ weight: 6.0 });
+                    });
+
+                    layer.on('mouseout', function() {
+                        layer.setStyle({ weight: 3.5 });
+                    });
+
+                    // Klikk på sporet -> Beholder hvit farge, zoomer inn til 80% og åpner verktøy
                     layer.on('click', function(ev) {
                         L.DomEvent.stopPropagation(ev);
                         
-                        layer.setStyle({ color: '#fc4c02', weight: 4.5, opacity: 1.0 });
+                        layer.setStyle({ color: '#ffffff', weight: 4.5, opacity: 1.0 });
                         trackTools.classList.add('visible');
                         
-                        // Zoomer inn på sporet
-                        map.fitBounds(trackBounds, { padding: [50, 50] });
-
-                        if (peaksEnabled) {
-                            fetchPeaksForCurrentView();
-                        }
+                        // FitBounds til ca 80% av skjermen (10% padding på alle sider)
+                        map.fitBounds(trackBounds, { padding: [map.getSize().y * 0.1, map.getSize().x * 0.1] });
                     });
 
-                    // Ved første opplasting: Vises som en oversikt (ca 5% av skjermen)
+                    // Ved første opplasting: 8% av kartflaten (120% padding rundtom)
                     map.fitBounds(trackBounds, { 
-                        padding: [map.getSize().y * 1.5, map.getSize().x * 1.5] 
+                        padding: [map.getSize().y * 1.2, map.getSize().x * 1.2] 
                     });
                 });
 
@@ -557,28 +571,26 @@
             reader.readAsText(file);
         }
 
-        // --- FJELLTOPP-FUNKSJONALITET ---
+        // --- FJELLTOPP-FUNKSJONALITET (MANUELL TOGGLE) ---
 
         peaksBtn.addEventListener('click', () => {
             peaksEnabled = !peaksEnabled;
             peaksBtn.classList.toggle('active', peaksEnabled);
+            
             if (peaksEnabled) {
+                // Skrus PÅ -> Henter fjelltopper for dagens utsnitt
                 fetchPeaksForCurrentView();
             } else {
+                // Skrus AV -> Tømmer cachen fullstendig
                 clearPeaks();
             }
         });
 
-        map.on('moveend zoomend', () => {
-            if (peaksEnabled && trackTools.classList.contains('visible')) {
-                fetchPeaksForCurrentView();
-            } else {
+        // Oppdaterer KUN posisjonen til eksisterende topper ved zoom/panorering
+        map.on('move zoom', () => {
+            if (detectedPeaks.length > 0) {
                 updatePeakPositions();
             }
-        });
-
-        map.on('move zoom', () => {
-            updatePeakPositions();
         });
 
         lineStyleSelect.addEventListener('change', () => redrawPeakLines());
@@ -742,7 +754,7 @@
             if (detectedPeaks.length === 0) return;
 
             const style = lineStyleSelect.value;
-            const lineColor = "#fc4c02";
+            const lineColor = "#ffffff";
 
             detectedPeaks.forEach(p => {
                 const anchor = map.latLngToContainerPoint([p.lat, p.lon]);
@@ -931,7 +943,7 @@
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
                     ctx.fillRect(x, y, rect.width, rect.height);
 
-                    ctx.fillStyle = '#fc4c02';
+                    ctx.fillStyle = '#ffffff';
                     ctx.fillText(text, x + 6, y + 13);
                 }
             });
