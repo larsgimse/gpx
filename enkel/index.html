@@ -10,7 +10,6 @@
             --bg-color: #111111;
             --panel-bg: rgba(26, 26, 26, 0.9);
             --text-color: #eeeeee;
-            --highlight-orange: #fc4c02;
         }
         
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -71,47 +70,27 @@
             white-space: nowrap;
         }
         
-        .btn:hover {
-            background: #333;
-            border-color: #555;
-        }
+        .btn:hover { background: #333; border-color: #555; }
 
-        .btn-upload {
-            background: #3a3a3a;
-            border-color: #555;
-            color: #fff;
-            font-weight: 500;
-        }
-
-        .btn-upload:hover {
-            background: #4a4a4a;
-            border-color: #666;
-        }
+        .btn-upload { background: #3a3a3a; border-color: #555; }
 
         .btn-toggle {
             background: #222;
-            border-color: #444;
-            color: #ccc;
+            border: 1px solid #444;
+            color: #aaa;
         }
 
+        /* Tydelig toggle-stil når aktivert */
         .btn-toggle.active {
-            background: #ffffff;
-            border-color: #ffffff;
-            color: #111;
-            font-weight: 600;
+            background: #ffffff !important;
+            border-color: #ffffff !important;
+            color: #000000 !important;
+            font-weight: 700;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
         }
 
-        .btn-reset {
-            background: #222;
-            border-color: #444;
-            color: #ccc;
-        }
-
-        .btn-download {
-            background: #2a2a2a;
-            border-color: #444;
-            color: #fff;
-        }
+        .btn-reset { background: #222; border-color: #444; color: #ccc; }
+        .btn-download { background: #2a2a2a; border-color: #444; color: #fff; }
 
         .select-wrapper {
             display: flex;
@@ -131,6 +110,7 @@
             cursor: pointer;
         }
 
+        /* Skjult til sporet klikkes */
         .track-tools {
             display: none;
             align-items: center;
@@ -141,9 +121,7 @@
             display: flex;
         }
 
-        #file-input {
-            display: none;
-        }
+        #file-input { display: none; }
 
         #map-container {
             flex: 1;
@@ -152,16 +130,9 @@
             position: relative;
         }
 
-        #map {
-            width: 100%;
-            height: 100%;
-            background: var(--bg-color);
-        }
+        #map { width: 100%; height: 100%; background: var(--bg-color); }
 
-        .leaflet-bottom.leaflet-left {
-            bottom: 20px;
-            left: 10px;
-        }
+        .leaflet-bottom.leaflet-left { bottom: 20px; left: 10px; }
 
         #peaks-canvas-layer {
             position: absolute;
@@ -216,14 +187,12 @@
             padding: 0 2px;
         }
 
-        .draggable-element:hover .delete-btn {
-            display: inline-block;
-        }
+        .draggable-element:hover .delete-btn { display: inline-block; }
 
         #crop-box {
             position: absolute;
-            border: 1.5px dashed #ffffff;
-            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed #ffffff;
+            background: rgba(255, 255, 255, 0.15);
             pointer-events: none;
             z-index: 900;
             display: none;
@@ -243,52 +212,6 @@
             display: none;
             border: 1px solid #555;
             pointer-events: none;
-        }
-
-        #help-info-box {
-            position: absolute;
-            bottom: 20px;
-            right: 10px;
-            width: 310px;
-            background: rgba(20, 20, 20, 0.92);
-            border: 1px solid #333;
-            border-radius: 8px;
-            padding: 12px 14px;
-            z-index: 1000;
-            font-size: 0.8rem;
-            line-height: 1.4;
-            color: #ccc;
-            backdrop-filter: blur(8px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }
-
-        #help-info-box h4 {
-            color: #fff;
-            font-size: 0.85rem;
-            margin-bottom: 6px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        #help-info-box ul {
-            padding-left: 16px;
-            margin-top: 4px;
-        }
-
-        #help-info-box li {
-            margin-bottom: 4px;
-        }
-
-        #close-help-btn {
-            cursor: pointer;
-            font-size: 14px;
-            color: #888;
-            font-weight: bold;
-        }
-
-        #close-help-btn:hover {
-            color: #fff;
         }
 
         #export-modal {
@@ -322,33 +245,11 @@
                 gap: 10px;
                 align-items: center;
                 background: rgba(20, 20, 20, 0.95);
-                box-shadow: 0 4px 20px rgba(0,0,0,0.6);
             }
-            h1 { 
-                position: relative;
-                left: auto;
-                transform: none;
-                font-size: 0.95rem; 
-                text-align: center;
-            }
-            .nav-buttons {
-                width: 100%;
-                justify-content: center;
-                flex-wrap: wrap;
-            }
-            .btn, .select-style {
-                flex: 1;
-                text-align: center;
-            }
-            #help-info-box {
-                bottom: 140px;
-                right: 10px;
-                left: 10px;
-                width: auto;
-            }
-            .leaflet-bottom.leaflet-left {
-                bottom: 150px;
-            }
+            h1 { position: relative; left: auto; transform: none; font-size: 0.95rem; }
+            .nav-buttons { width: 100%; justify-content: center; flex-wrap: wrap; }
+            .btn, .select-style { flex: 1; text-align: center; }
+            .leaflet-bottom.leaflet-left { bottom: 150px; }
         }
     </style>
 </head>
@@ -360,7 +261,7 @@
             <div id="track-tools" class="track-tools">
                 <button id="btn-toggle-peaks" class="btn btn-toggle">⛰️ Fjelltopper</button>
                 <div class="select-wrapper">
-                    <span>Linjestil (Fjelltopp-pekere):</span>
+                    <span>Linjestil:</span>
                     <select id="line-style" class="select-style">
                         <option value="corner">Rett vinkel</option>
                         <option value="arc">Tilpasset bue</option>
@@ -377,26 +278,15 @@
         </div>
     </header>
 
-    <!-- Filtrering i operativsystemets filvelger -->
     <input type="file" id="file-input" accept=".gpx" />
 
-    <div id="info-banner">Marker området du vil ta bilde av (klikk og dra)</div>
+    <div id="info-banner">Klikk og dra for å markere utsnittet du vil laste ned</div>
 
     <div id="map-container">
         <div id="map"></div>
         <canvas id="peaks-canvas-layer"></canvas>
         <div id="labels-layer"></div>
         <div id="crop-box"></div>
-
-        <div id="help-info-box">
-            <h4>Funksjonalitet <span id="close-help-btn" title="Lukk">×</span></h4>
-            <ul>
-                <li><b>Last opp GPX:</b> Velg en GPX-fil. Sporet legges inn og vises slik at det utgjør ca. 8% av oversikten.</li>
-                <li><b>Gå inn på sporet:</b> Før musen over sporet for å utheve det, og klikk for å zoome inn slik at sporet dekker 80% av skjermen.</li>
-                <li><b>Fjelltopper:</b> Trykk «Fjelltopper» for å hente topper i utsnittet. Toppene låses på kartet. Skru AV for å tømme cachen før du henter nye topper.</li>
-                <li><b>Etiketter &amp; Eksport:</b> Dra etiketter, endre linjestil eller marker kartsnitt for bilde-nedlasting.</li>
-            </ul>
-        </div>
     </div>
 
     <div id="export-modal">
@@ -422,20 +312,21 @@
         const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         const minRenderer = L.canvas({ tolerance: isTouchDevice ? 22 : 3 });
 
-        const START_LAT = 69.65;
-        const START_LON = 18.95;
-        const START_ZOOM = 9;
+        // Standard oversiktskart over Tromsø ved oppstart
+        const TROMSO_LAT = 69.6492;
+        const TROMSO_LON = 18.9553;
+        const START_ZOOM = 10;
 
         const map = L.map('map', {
             zoomControl: false,
             maxZoom: 18,
             renderer: minRenderer
-        }).setView([START_LAT, START_LON], START_ZOOM);
+        }).setView([TROMSO_LAT, TROMSO_LON], START_ZOOM);
 
         L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-        const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2o3a_1_671194bbedbad28841272141', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2o3a_1_671194bbedbad28841272141', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
             subdomains: 'abcd',
             maxZoom: 20,
             crossOrigin: true
@@ -455,8 +346,6 @@
         const exportModal = document.getElementById('export-modal');
         const modalConfirm = document.getElementById('modal-confirm');
         const modalCancel = document.getElementById('modal-cancel');
-        const helpInfoBox = document.getElementById('help-info-box');
-        const closeHelpBtn = document.getElementById('close-help-btn');
 
         const peaksCanvas = document.getElementById('peaks-canvas-layer');
         const peaksCtx = peaksCanvas.getContext('2d');
@@ -464,7 +353,6 @@
 
         let peaksEnabled = false;
         let detectedPeaks = [];
-        let isFetchingPeaks = false;
 
         function resizeCanvas() {
             peaksCanvas.width = window.innerWidth;
@@ -473,10 +361,6 @@
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
-
-        closeHelpBtn.addEventListener('click', () => {
-            helpInfoBox.style.display = 'none';
-        });
 
         uploadBtn.addEventListener('click', () => {
             fileInput.value = '';
@@ -488,14 +372,11 @@
             if (!files || files.length === 0) return;
 
             const file = files[0];
-
-            // Validering i JS for at det KUN skal være GPX
             if (!file.name.toLowerCase().endsWith('.gpx')) {
                 alert('Vennligst velg en gyldig .gpx-fil.');
                 return;
             }
 
-            helpInfoBox.style.display = 'none';
             lesOgLeggTilGpx(file);
         });
 
@@ -510,7 +391,7 @@
                 clearPeaks();
                 peaksEnabled = false;
                 peaksBtn.classList.remove('active');
-                trackTools.classList.remove('visible');
+                trackTools.classList.remove('visible'); // Skjul fjelltopp/linjestil ved ny lasting
 
                 const track = new L.GPX(evt.target.result, {
                     async: true,
@@ -526,43 +407,33 @@
                 track.on('loaded', function(e) {
                     const layer = e.target;
                     const trackBounds = layer.getBounds();
-
                     if (!trackBounds.isValid()) return;
 
                     activeTrackLayer = layer;
-                    const trackName = layer.get_name() || file.name.replace('.gpx', '');
 
-                    if (!isTouchDevice) {
-                        layer.bindTooltip(`<b>${trackName}</b>`, {
-                            sticky: true,
-                            direction: 'top',
-                            offset: [0, -10]
-                        });
-                    }
+                    // Hover-effekt
+                    layer.on('mouseover', () => layer.setStyle({ weight: 5.5 }));
+                    layer.on('mouseout', () => layer.setStyle({ weight: 3.5 }));
 
-                    // Tykkere strek på mouseover slik at det kan klikkes enkelt
-                    layer.on('mouseover', function() {
-                        layer.setStyle({ weight: 6.0 });
-                    });
-
-                    layer.on('mouseout', function() {
-                        layer.setStyle({ weight: 3.5 });
-                    });
-
-                    // Klikk på sporet -> Beholder hvit farge, zoomer inn til 80% og åpner verktøy
+                    // Klikk på sporet -> Vis verktøy & Zoom inn til ca 80% dekning
                     layer.on('click', function(ev) {
                         L.DomEvent.stopPropagation(ev);
                         
-                        layer.setStyle({ color: '#ffffff', weight: 4.5, opacity: 1.0 });
-                        trackTools.classList.add('visible');
+                        // Behold hvit farge
+                        layer.setStyle({ color: '#ffffff', weight: 4.5 });
                         
-                        // FitBounds til ca 80% av skjermen (10% padding på alle sider)
-                        map.fitBounds(trackBounds, { padding: [map.getSize().y * 0.1, map.getSize().x * 0.1] });
+                        // Vis fjelltopp-knapp og linjestil
+                        trackTools.classList.add('visible');
+
+                        // Zoom inn så sporet dekker ca 80% av skjermen (10% padding rundt)
+                        map.fitBounds(trackBounds, { 
+                            padding: [map.getSize().y * 0.10, map.getSize().x * 0.10] 
+                        });
                     });
 
-                    // Ved første opplasting: 8% av kartflaten (120% padding rundtom)
+                    // Ved opplasting: zoom slik at sporet dekker ca 10% av kartutsnittet
                     map.fitBounds(trackBounds, { 
-                        padding: [map.getSize().y * 1.2, map.getSize().x * 1.2] 
+                        padding: [map.getSize().y * 1.8, map.getSize().x * 1.8] 
                     });
                 });
 
@@ -571,22 +442,20 @@
             reader.readAsText(file);
         }
 
-        // --- FJELLTOPP-FUNKSJONALITET (MANUELL TOGGLE) ---
+        // --- FJELLTOPP TOGGLE ---
 
         peaksBtn.addEventListener('click', () => {
             peaksEnabled = !peaksEnabled;
-            peaksBtn.classList.toggle('active', peaksEnabled);
             
             if (peaksEnabled) {
-                // Skrus PÅ -> Henter fjelltopper for dagens utsnitt
+                peaksBtn.classList.add('active');
                 fetchPeaksForCurrentView();
             } else {
-                // Skrus AV -> Tømmer cachen fullstendig
-                clearPeaks();
+                peaksBtn.classList.remove('active');
+                clearPeaks(); // Tømmer cachen helt ved toggle AV
             }
         });
 
-        // Oppdaterer KUN posisjonen til eksisterende topper ved zoom/panorering
         map.on('move zoom', () => {
             if (detectedPeaks.length > 0) {
                 updatePeakPositions();
@@ -602,9 +471,6 @@
         }
 
         async function fetchPeaksForCurrentView() {
-            if (isFetchingPeaks) return;
-            isFetchingPeaks = true;
-
             const bounds = map.getBounds();
             const minLat = bounds.getSouth();
             const maxLat = bounds.getNorth();
@@ -638,7 +504,6 @@
             }
 
             renderPeaks(peaks);
-            isFetchingPeaks = false;
         }
 
         function parseKartverketGeonorge(data) {
@@ -789,12 +654,13 @@
             });
         }
 
-        // --- OMRAADEMARKERING OG BILDEEKSPORT ---
+        // --- OMRÅDEMARKERING OG BILDENEDLASTING (KORREKT UTSNITT) ---
 
         let isSelectionMode = false;
         let isSelecting = false;
         let selectionStart = { x: 0, y: 0 };
         let selectionEnd = { x: 0, y: 0 };
+        const mapDiv = document.getElementById('map-container');
 
         downloadImageBtn.addEventListener('click', () => {
             isSelectionMode = true;
@@ -803,11 +669,9 @@
             map.getContainer().style.cursor = 'crosshair';
         });
 
-        const mapDiv = document.getElementById('map-container');
-
         mapDiv.addEventListener('mousedown', (e) => {
             if (!isSelectionMode) return;
-            if (e.target.closest('header') || e.target.closest('.draggable-element') || e.target.closest('#export-modal') || e.target.closest('#help-info-box')) return;
+            if (e.target.closest('header') || e.target.closest('.draggable-element') || e.target.closest('#export-modal')) return;
 
             isSelecting = true;
             const rect = mapDiv.getBoundingClientRect();
@@ -850,7 +714,7 @@
 
             if (w < 20 || h < 20) {
                 cropBox.style.display = 'none';
-                alert('For lite område valgt. Marker på nytt.');
+                alert('For lite område valgt. Prøv å markere på nytt.');
                 return;
             }
 
@@ -882,12 +746,14 @@
 
             ctx.scale(scale, scale);
 
+            // Bakgrunn
             ctx.fillStyle = '#111111';
             ctx.fillRect(0, 0, cropW, cropH);
 
-            const tiles = document.querySelectorAll('.leaflet-tile-container img');
             const mapRect = mapDiv.getBoundingClientRect();
 
+            // 1. Tegn kartfliser presist forskjøvet i henhold til cropX/cropY
+            const tiles = document.querySelectorAll('.leaflet-tile-container img');
             for (let tile of tiles) {
                 const tileRect = tile.getBoundingClientRect();
                 const x = tileRect.left - mapRect.left - cropX;
@@ -909,6 +775,7 @@
                 }
             }
 
+            // 2. Tegn GPX-sporet (SVG)
             const svgLayer = document.querySelector('.leaflet-overlay-pane svg');
             if (svgLayer) {
                 const svgRect = svgLayer.getBoundingClientRect();
@@ -929,8 +796,10 @@
                 URL.revokeObjectURL(url);
             }
 
+            // 3. Tegn stiplede pekelinjer til fjelltoppene
             ctx.drawImage(peaksCanvas, -cropX, -cropY);
 
+            // 4. Tegn fjelltopp-etiketter som treffer innenfor det valgte utsnittet
             detectedPeaks.forEach(p => {
                 const rect = p.element.getBoundingClientRect();
                 const x = rect.left - mapRect.left - cropX;
@@ -948,6 +817,7 @@
                 }
             });
 
+            // Nedlasting
             const link = document.createElement('a');
             link.download = `kart-utsnitt-${Math.round(cropW * scale)}x${Math.round(cropH * scale)}.png`;
             link.href = exportCanvas.toDataURL('image/png');
@@ -964,9 +834,8 @@
             peaksEnabled = false;
             peaksBtn.classList.remove('active');
             trackTools.classList.remove('visible');
-            helpInfoBox.style.display = 'block';
             fileInput.value = '';
-            map.setView([START_LAT, START_LON], START_ZOOM);
+            map.setView([TROMSO_LAT, TROMSO_LON], START_ZOOM);
         });
     </script>
 </body>
