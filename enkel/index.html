@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enkel GPX-visning</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #f0f0f0;
+      color: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .controls {
+      margin-bottom: 15px;
+      font-size: 13px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      max-width: 950px;
+      justify-content: center;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      padding: 6px 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      color: #000;
+    }
+
+    .control-group select {
+      background: #fff;
+      color: #000;
+      border: 1px solid #ccc;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+
+    .checkbox-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #000;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover { background: #333; }
+
+    .zoom-btn {
+      padding: 2px 8px;
+      font-size: 14px;
+      font-weight: bold;
+      min-width: 26px;
+    }
+
+    #status-container {
+      width: 100%;
+      max-width: 650px;
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #status {
+      font-weight: 500;
+      color: #444;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background-color: #ddd;
+      border-radius: 3px;
+      overflow: hidden;
+      display: none;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background-color: #000;
+      transition: width 0.15s ease;
+    }
+
+    #frame {
+      width: 650px;
+      height: 650px;
+      background: #ffffff;
+      border: 0px solid #000000;
+      position: relative;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      overflow: hidden;
+      cursor: grab;
+    }
+
+    #frame.grabbing { cursor: grabbing; }
+
+    #info-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 20;
+      background: rgba(255, 255, 255, 0.95);
+      color: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+      text-align: center;
+    }
+
+    #info-overlay h2 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      margin-bottom: 15px;
+      text-transform: uppercase;
+    }
+
+    #info-overlay ul {
+      text-align: left;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      max-width: 480px;
+      list-style-type: square;
+      padding-left: 20px;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #mapCanvas { z-index: 1; }
+    #trackCanvas { z-index: 2; }
+
+    #labels-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .draggable-element {
+      position: absolute;
+      pointer-events: auto;
+      cursor: move;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: transparent;
+      padding: 2px 4px;
+    }
+
+    #title-container {
+      top: 25px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    #title-input {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      text-align: center;
+      border: 1px dashed transparent;
+      background: transparent;
+      outline: none;
+      color: #0077b6;
+      font-family: inherit;
+      cursor: move;
+      width: 20ch;
+      min-width: 100px;
+      max-width: 100%;
+    }
+
+    #title-input:hover { border-color: #ccc; }
+    #title-input:focus {
+      cursor: text;
+      border-color: #ccc;
+    }
+
+    .draggable-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      color: #0077b6;
+      text-transform: uppercase;
+    }
+
+    .delete-btn {
+      display: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      color: #ff0000;
+      line-height: 1;
+      padding: 0 2px;
+    }
+
+    .draggable-element:hover .delete-btn {
+      display: inline-block;
+    }
+
+    #elevation-container {
+      width: 292px;
+      height: 60px;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #elevationCanvas {
+      width: 292px;
+      height: 60px;
+      position: relative;
+    }
+
+    #coord-container {
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="controls">
+    <input type="file" id="gpx-input" accept=".gpx">
+    
+    <div class="control-group">
+      <label><input type="checkbox" id="toggle-map" checked> Bakgrunnskart</label>
+      <select id="map-source">
+        <option value="carto_voyager">CARTO Voyager</option>
+        <option value="carto_positron">CARTO Positron</option>
+        <option value="kartverket_topo">Kartverket Topo</option>
+        <option value="opentopo">OpenTopoMap</option>
+        <option value="osm">OpenStreetMap</option>
+        <option value="esri_sat">Esri Satellitt</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <span>Zoom:</span>
+      <button type="button" class="zoom-btn" id="zoom-out">−</button>
+      <button type="button" class="zoom-btn" id="zoom-in">+</button>
+    </div>
+
+    <div class="control-group">
+      <label><input type="checkbox" id="toggle-border"> Ramme</label>
+    </div>
+
+    <div class="control-group">
+      <label>Kvalitet:</label>
+      <select id="export-scale">
+        <option value="1">Standard (650x650)</option>
+        <option value="2" selected>HD (1300x1300)</option>
+        <option value="3">Full HD (1950x1950)</option>
+        <option value="4">4K (2600x2600)</option>
+      </select>
+    </div>
+
+    <button id="download-btn">Last ned bilde</button>
+
+    <div class="control-group checkbox-group">
+      <label><input type="checkbox" class="data-field-toggle" data-field="date"> Dato</label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="dist"> Lengde totalt</label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="elevationGain"> Total stigning</label>
+      <label><input type="checkbox" class="data-field-toggle" data-field="duration"> Tid totalt</label>
+    </div>
+
+    <div id="status-container">
+      <div id="status">Last opp en GPX-fil</div>
+      <div class="progress-bar-bg" id="progress-bg">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="frame">
+    <div id="info-overlay">
+      <h2>Enkel GPX-Visning</h2>
+      <ul>
+        <li><b>Last opp GPX:</b> Genererer automatisk sporlinje, lengde og høydeprofil.</li>
+        <li><b>Flyttbare elementer:</b> Klikk og dra tittelen, høydekurven og koordinatene fritt.</li>
+        <li><b>Panner og zoom:</b> Dra i kartet eller bruk +/- knappene for å tilpasse utsnittet.</li>
+      </ul>
+    </div>
+
+    <canvas id="mapCanvas" width="650" height="650"></canvas>
+    <canvas id="trackCanvas" width="650" height="650"></canvas>
+
+    <div id="labels-layer">
+      <div id="title-container" class="draggable-element">
+        <input type="text" id="title-input" value="LEGG TIL EGEN TITTEL">
+        <span class="delete-btn" title="Fjern tittel">×</span>
+      </div>
+
+      <div id="elevation-container" class="draggable-element" style="display: none;">
+        <canvas id="elevationCanvas" width="292" height="60"></canvas>
+        <span class="delete-btn" style="position: absolute; right: -12px; top: 0;" title="Fjern høydekurve">×</span>
+      </div>
+
+      <div id="coord-container" class="draggable-element" style="display: none;">
+        <span class="draggable-label" id="coord-text"></span>
+        <span class="delete-btn" title="Fjern koordinat">×</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const apiKey = "cb1_2o3a_1_671194bbedbad28841272141";
+
+    const mapCanvas = document.getElementById('mapCanvas');
+    const mapCtx = mapCanvas.getContext('2d');
+
+    const trackCanvas = document.getElementById('trackCanvas');
+    const trackCtx = trackCanvas.getContext('2d');
+    
+    const eleCanvas = document.getElementById('elevationCanvas');
+    const eleCtx = eleCanvas.getContext('2d');
+    
+    const frame = document.getElementById('frame');
+    const infoOverlay = document.getElementById('info-overlay');
+    const labelsLayer = document.getElementById('labels-layer');
+    const statusEl = document.getElementById('status');
+    const progressBg = document.getElementById('progress-bg');
+    const progressFill = document.getElementById('progress-fill');
+    
+    const titleContainer = document.getElementById('title-container');
+    const titleInput = document.getElementById('title-input');
+    const elevationContainer = document.getElementById('elevation-container');
+    const coordContainer = document.getElementById('coord-container');
+    const coordText = document.getElementById('coord-text');
+    
+    const toggleMap = document.getElementById('toggle-map');
+    const mapSourceSelect = document.getElementById('map-source');
+    const exportScaleSelect = document.getElementById('export-scale');
+
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const toggleBorder = document.getElementById('toggle-border');
+
+    let trackPoints = []; 
+    let customDataLabels = [];
+    let loadedMapTiles = new Map();
+    let gpxStats = {};
+
+    let offsetX = 0;
+    let offsetY = 0;
+    let userZoom = 1;
+    let isPanning = false;
+    let panStartX = 0, panStartY = 0;
+
+    function recalculateStats() {
+      if (trackPoints.length === 0) return;
+
+      const startTime = trackPoints[0].time;
+      const endTime = trackPoints[trackPoints.length - 1].time;
+      
+      let totalDist = trackPoints[trackPoints.length - 1].dist;
+      let totalEleGain = 0;
+
+      trackPoints.forEach((pt, index) => {
+        if (index > 0) {
+          const eleDiff = pt.ele - trackPoints[index - 1].ele;
+          if (eleDiff > 0) totalEleGain += eleDiff;
+        }
+      });
+
+      let durationStr = "N/A";
+      let dateStr = "N/A";
+
+      if (startTime) {
+        dateStr = startTime.toLocaleDateString('no-NO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      }
+
+      if (startTime && endTime) {
+        const diffMs = endTime - startTime;
+        const hrs = Math.floor(diffMs / 3600000);
+        const mins = Math.round((diffMs % 3600000) / 60000);
+        durationStr = `${hrs}t ${mins}m`;
+      }
+
+      gpxStats = {
+        date: `DATO: ${dateStr}`,
+        dist: `LENGDE TOTALT: ${(totalDist / 1000).toFixed(2)} KM`,
+        elevationGain: `STIGNING: ${Math.round(totalEleGain)} M`,
+        duration: `TID: ${durationStr}`
+      };
+
+      customDataLabels.forEach(lbl => {
+        const field = lbl.id;
+        const labelSpan = lbl.element.querySelector('.draggable-label');
+        if (labelSpan && gpxStats[field]) {
+          labelSpan.textContent = gpxStats[field];
+        }
+      });
+
+      drawElevationProfile();
+    }
+
+    function showProgress(text, percent) {
+      statusEl.textContent = text;
+      progressBg.style.display = 'block';
+      progressFill.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    }
+
+    function hideProgress(text = "") {
+      if (text) statusEl.textContent = text;
+      progressBg.style.display = 'none';
+      progressFill.style.width = '0%';
+    }
+
+    function autoExpandTitle() {
+      titleInput.value = titleInput.value.toUpperCase();
+      const len = titleInput.value.length;
+      titleInput.style.width = Math.max(len + 2, 10) + 'ch';
+    }
+    titleInput.addEventListener('input', autoExpandTitle);
+    autoExpandTitle();
+
+    document.getElementById('gpx-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (infoOverlay) infoOverlay.style.display = 'none';
+
+      showProgress("Leser GPX-fil...", 10);
+      const reader = new FileReader();
+      reader.onload = (event) => parseGPX(event.target.result);
+      reader.readAsText(file);
+    });
+
+    document.getElementById('download-btn').addEventListener('click', downloadImage);
+
+    document.querySelectorAll('.draggable-element .delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        btn.parentElement.style.display = 'none';
+      });
+    });
+
+    toggleBorder.addEventListener('change', updateFrameBorder);
+
+    function updateFrameBorder() {
+      frame.style.border = toggleBorder.checked ? '2px solid #0077b6' : '0px solid transparent';
+    }
+
+    toggleMap.addEventListener('change', () => redrawCanvasAndLines());
+    mapSourceSelect.addEventListener('change', () => {
+      loadedMapTiles.clear();
+      redrawCanvasAndLines();
+    });
+
+    function changeZoom(delta) {
+      userZoom = Math.min(3, Math.max(0.5, userZoom + delta));
+      trackCtx.clearRect(0, 0, trackCanvas.width, trackCanvas.height);
+      redrawCanvasAndLines();
+    }
+
+    zoomInBtn.addEventListener('click', () => changeZoom(0.2));
+    zoomOutBtn.addEventListener('click', () => changeZoom(-0.2));
+
+    frame.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      let delta = e.deltaY < 0 ? 0.1 : -0.1;
+      changeZoom(delta);
+    });
+
+    setupDraggable(titleContainer);
+    setupDraggable(elevationContainer);
+    setupDraggable(coordContainer);
+
+    function setupDraggable(element) {
+      let isDragging = false;
+      let startMouseX = 0, startMouseY = 0;
+      let startPosX = 0, startPosY = 0;
+
+      element.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('delete-btn')) return;
+        if (e.target === document.activeElement && e.target.tagName === 'INPUT') return;
+
+        isDragging = true;
+        startMouseX = e.clientX;
+        startMouseY = e.clientY;
+        
+        const rect = element.getBoundingClientRect();
+        const frameRect = frame.getBoundingClientRect();
+        
+        startPosX = rect.left - frameRect.left;
+        startPosY = rect.top - frameRect.top;
+        
+        element.style.transform = 'none';
+        element.style.left = `${startPosX}px`;
+        element.style.top = `${startPosY}px`;
+        element.style.bottom = 'auto';
+        
+        e.stopPropagation();
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        let newX = startPosX + (e.clientX - startMouseX);
+        let newY = startPosY + (e.clientY - startMouseY);
+        element.style.left = `${newX}px`;
+        element.style.top = `${newY}px`;
+      });
+
+      window.addEventListener('mouseup', () => { isDragging = false; });
+    }
+
+    frame.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.draggable-element')) return;
+      isPanning = true;
+      panStartX = e.clientX - offsetX;
+      panStartY = e.clientY - offsetY;
+      frame.classList.add('grabbing');
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isPanning) return;
+      offsetX = e.clientX - panStartX;
+      offsetY = e.clientY - panStartY;
+      redrawCanvasAndLines();
+    });
+
+    window.addEventListener('mouseup', () => {
+      isPanning = false;
+      frame.classList.remove('grabbing');
+    });
+
+    function parseGPX(xmlText) {
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlText, "text/xml");
+      const trkpts = xml.querySelectorAll("trkpt");
+
+      trackPoints = [];
+      let totalDist = 0;
+      let totalEleGain = 0;
+
+      trkpts.forEach((pt, index) => {
+        const lat = parseFloat(pt.getAttribute("lat"));
+        const lon = parseFloat(pt.getAttribute("lon"));
+        const eleNode = pt.querySelector("ele");
+        const ele = eleNode ? parseFloat(eleNode.textContent) : 0;
+        const timeNode = pt.querySelector("time");
+        const time = timeNode ? new Date(timeNode.textContent) : null;
+
+        if (index > 0) {
+          const prev = trackPoints[index - 1];
+          totalDist += getDistanceMeters(prev.lat, prev.lon, lat, lon);
+          const eleDiff = ele - prev.ele;
+          if (eleDiff > 0) totalEleGain += eleDiff;
+        }
+
+        trackPoints.push({ lat, lon, ele, dist: totalDist, time });
+      });
+
+      offsetX = 0;
+      offsetY = 0;
+
+      if (trackPoints.length > 0) {
+        recalculateStats();
+
+        const startPt = trackPoints[0];
+        coordText.textContent = `${startPt.lat.toFixed(5)}° N, ${startPt.lon.toFixed(5)}° E`;
+        coordContainer.style.display = 'inline-flex';
+
+        elevationContainer.style.display = 'flex';
+        redrawCanvasAndLines();
+        hideProgress("Spor lastet inn!");
+      } else {
+        hideProgress("Ingen gyldige spor-punkter funnet.");
+      }
+    }
+
+    document.querySelectorAll('.data-field-toggle').forEach(chk => {
+      chk.addEventListener('change', (e) => {
+        const field = e.target.getAttribute('data-field');
+        if (e.target.checked) {
+          createCustomDataLabel(field, gpxStats[field] || '');
+        } else {
+          removeCustomDataLabel(field);
+        }
+      });
+    });
+
+    function createCustomDataLabel(field, text) {
+      if (document.getElementById(`label-${field}`)) return;
+
+      const labelContainer = document.createElement('div');
+      labelContainer.className = 'draggable-element';
+      labelContainer.id = `label-${field}`;
+      
+      labelContainer.innerHTML = `
+        <span class="draggable-label" style="color: #0077b6;">${text}</span>
+        <span class="delete-btn" title="Slett">×</span>
+      `;
+
+      let pos = { x: 40, y: 50 + customDataLabels.length * 28 };
+      labelContainer.style.left = `${pos.x}px`;
+      labelContainer.style.top = `${pos.y}px`;
+
+      labelsLayer.appendChild(labelContainer);
+
+      customDataLabels.push({ id: field, element: labelContainer });
+      setupDraggable(labelContainer);
+
+      labelContainer.querySelector('.delete-btn').addEventListener('click', () => {
+        removeCustomDataLabel(field);
+        const chk = document.querySelector(`.data-field-toggle[data-field="${field}"]`);
+        if (chk) chk.checked = false;
+      });
+    }
+
+    function removeCustomDataLabel(field) {
+      const el = document.getElementById(`label-${field}`);
+      if (el) el.remove();
+      customDataLabels = customDataLabels.filter(item => item.id !== field);
+    }
+
+    function getDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function getTransformationParams(customWidth = mapCanvas.width, customHeight = mapCanvas.height) {
+      let minLat = Infinity, maxLat = -Infinity;
+      let minLon = Infinity, maxLon = -Infinity;
+
+      trackPoints.forEach(p => {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lon < minLon) minLon = p.lon;
+        if (p.lon > maxLon) maxLon = p.lon;
+      });
+
+      const latSpan = maxLat - minLat || 0.005;
+      const lonSpan = maxLon - minLon || 0.005;
+      const cosLat = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+      const maxSpan = Math.max(latSpan, lonSpan * cosLat);
+      const scale = ((customWidth * 0.52) / maxSpan) * userZoom;
+      const centerLat = (minLat + maxLat) / 2;
+      const centerLon = (minLon + maxLon) / 2;
+
+      return { scale, centerLat, centerLon, cosLat };
+    }
+
+    function toCanvasCoords(lat, lon, customWidth = mapCanvas.width, customHeight = mapCanvas.height, scaleFactor = 1) {
+      const { scale, centerLat, centerLon, cosLat } = getTransformationParams(customWidth, customHeight);
+      return {
+        x: customWidth / 2 + (lon - centerLon) * cosLat * scale + (offsetX * scaleFactor),
+        y: (customHeight / 2 - (10 * scaleFactor)) - (lat - centerLat) * scale + (offsetY * scaleFactor)
+      };
+    }
+
+    function lon2tile(lon, zoom) { return (lon + 180) / 360 * Math.pow(2, zoom); }
+    function lat2tile(lat, zoom) { return (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom); }
+
+    function getTileUrl(source, zoom, x, y) {
+      switch(source) {
+        case 'carto_voyager':
+          return `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png?key=${apiKey}`;
+        case 'carto_positron':
+          return `https://basemaps.cartocdn.com/light_nolabels/${zoom}/${x}/${y}.png?key=${apiKey}`;
+        case 'kartverket_topo':
+          return `https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/${zoom}/${y}/${x}.png`;
+        case 'opentopo':
+          return `https://tile.opentopomap.org/${zoom}/${x}/${y}.png`;
+        case 'osm':
+          return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+        case 'esri_sat':
+          return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${y}/${x}`;
+        default:
+          return `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png?key=${apiKey}`;
+      }
+    }
+
+    function loadTileAsync(key, url, cacheMap) {
+      return new Promise((resolve) => {
+        if (cacheMap.has(key)) {
+          const tileData = cacheMap.get(key);
+          if (tileData.loaded) return resolve(tileData);
+        }
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        const tileData = { img: img, loaded: false, error: false };
+        cacheMap.set(key, tileData);
+        img.onload = () => { tileData.loaded = true; resolve(tileData); };
+        img.onerror = () => { tileData.loaded = true; tileData.error = true; resolve(tileData); };
+        img.src = url;
+      });
+    }
+
+    function drawMapTiles() {
+      mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+
+      if (!toggleMap.checked || trackPoints.length === 0) return;
+
+      const { scale, centerLat, centerLon, cosLat } = getTransformationParams();
+      const zoom = Math.min(15, Math.max(8, Math.floor(12 + Math.log2(userZoom))));
+
+      const minX = Math.floor(lon2tile(centerLon - (mapCanvas.width / (2 * scale * cosLat)), zoom));
+      const maxX = Math.floor(lon2tile(centerLon + (mapCanvas.width / (2 * scale * cosLat)), zoom));
+      const minY = Math.floor(lat2tile(centerLat + (mapCanvas.height / (2 * scale)), zoom));
+      const maxY = Math.floor(lat2tile(centerLat - (mapCanvas.height / (2 * scale)), zoom));
+
+      const selectedSource = mapSourceSelect.value;
+
+      for (let x = minX - 1; x <= maxX + 1; x++) {
+        for (let y = minY - 1; y <= maxY + 1; y++) {
+          const key = `${selectedSource}/${zoom}/${x}/${y}`;
+
+          if (!loadedMapTiles.has(key)) {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            const tileData = { img: img, loaded: false, error: false };
+            loadedMapTiles.set(key, tileData);
+
+            img.onload = () => { tileData.loaded = true; redrawCanvasAndLines(); };
+            img.onerror = () => { tileData.loaded = true; tileData.error = true; redrawCanvasAndLines(); };
+            img.src = getTileUrl(selectedSource, zoom, x, y);
+          }
+
+          const tileData = loadedMapTiles.get(key);
+          if (tileData && tileData.loaded && !tileData.error) {
+            const n = Math.pow(2, zoom);
+            const tileLon = x / n * 360 - 180;
+            const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
+            const tileLat = latRad * 180 / Math.PI;
+
+            const pos = toCanvasCoords(tileLat, tileLon);
+            const tileSize = (360 / n) * cosLat * scale;
+
+            mapCtx.drawImage(tileData.img, pos.x, pos.y, tileSize + 0.5, tileSize + 0.5);
+          }
+        }
+      }
+
+      mapCtx.font = "8px sans-serif";
+      mapCtx.fillStyle = "rgba(0,0,0,0.4)";
+      mapCtx.textAlign = "right";
+      mapCtx.fillText("© Kartverket / OpenTopoMap / OpenStreetMap / Esri / CARTO", mapCanvas.width - 10, mapCanvas.height - 10);
+    }
+
+    function redrawCanvasAndLines() {
+      if (trackPoints.length === 0) return;
+
+      trackCtx.clearRect(0, 0, trackCanvas.width, trackCanvas.height);
+      drawMapTiles();
+
+      trackCtx.beginPath();
+      trackCtx.strokeStyle = "#0077b6";
+      trackCtx.lineWidth = 2.5;
+      trackPoints.forEach((p, index) => {
+        const pt = toCanvasCoords(p.lat, p.lon);
+        if (index === 0) trackCtx.moveTo(pt.x, pt.y);
+        else trackCtx.lineTo(pt.x, pt.y);
+      });
+      trackCtx.stroke();
+    }
+
+    function drawElevationProfileOnCanvas(targetCtx, scaleFactor = 1) {
+      if (trackPoints.length === 0) return;
+
+      const w = 292 * scaleFactor;
+      const h_total = 60 * scaleFactor;
+
+      targetCtx.clearRect(0, 0, w, h_total);
+
+      let maxEle = -Infinity, minEle = Infinity;
+      let maxPt = null;
+
+      trackPoints.forEach(p => {
+        if (p.ele > maxEle) { maxEle = p.ele; maxPt = p; }
+        if (p.ele < minEle) minEle = p.ele;
+      });
+
+      const totalDistance = trackPoints[trackPoints.length - 1].dist;
+      if (totalDistance <= 0 || maxEle === minEle) return;
+
+      const eleSpan = maxEle - minEle || 1;
+      const padding = 12 * scaleFactor;
+      const h = h_total - padding;
+
+      function getProfileX(dist) { return (dist / totalDistance) * w; }
+      function getProfileY(ele) { return h - ((ele - minEle) / eleSpan) * (h - (10 * scaleFactor)) + padding; }
+
+      targetCtx.beginPath();
+      targetCtx.strokeStyle = "#0077b6";
+      targetCtx.lineWidth = 1.5 * scaleFactor;
+
+      trackPoints.forEach((p, index) => {
+        const px = getProfileX(p.dist);
+        const py = getProfileY(p.ele);
+        if (index === 0) targetCtx.moveTo(px, py);
+        else targetCtx.lineTo(px, py);
+      });
+      targetCtx.stroke();
+
+      if (maxPt) {
+        const peakX = getProfileX(maxPt.dist);
+        const peakY = getProfileY(maxPt.ele);
+
+        targetCtx.beginPath();
+        targetCtx.arc(peakX, peakY, 3 * scaleFactor, 0, Math.PI * 2);
+        targetCtx.fillStyle = "#0077b6";
+        targetCtx.fill();
+
+        targetCtx.font = `bold ${9 * scaleFactor}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        targetCtx.fillStyle = "#0077b6";
+        targetCtx.textAlign = "center";
+        targetCtx.fillText(`MAKS ${Math.round(maxEle)}m`, peakX, peakY - (5 * scaleFactor));
+      }
+    }
+
+    function drawElevationProfile() {
+      eleCanvas.width = 292;
+      eleCanvas.height = 60;
+      drawElevationProfileOnCanvas(eleCtx, 1);
+    }
+
+    async function downloadImage() {
+      if (trackPoints.length === 0) {
+        alert("Last opp en GPX-fil først!");
+        return;
+      }
+
+      showProgress("Genererer bilde...", 10);
+
+      const scaleFactor = parseFloat(exportScaleSelect.value);
+      const exportWidth = mapCanvas.width * scaleFactor;
+      const exportHeight = mapCanvas.height * scaleFactor;
+
+      const finalCanvas = document.createElement('canvas');
+      finalCanvas.width = exportWidth;
+      finalCanvas.height = exportHeight;
+      const finalCtx = finalCanvas.getContext('2d');
+
+      finalCtx.fillStyle = "#ffffff";
+      finalCtx.fillRect(0, 0, exportWidth, exportHeight);
+
+      const { scale, centerLat, centerLon, cosLat } = getTransformationParams(exportWidth, exportHeight);
+      const baseZoom = Math.min(15, Math.max(8, Math.floor(12 + Math.log2(userZoom))));
+      const zoom = Math.min(18, baseZoom + Math.floor(scaleFactor / 2));
+
+      const minX = Math.floor(lon2tile(centerLon - (exportWidth / (2 * scale * cosLat)), zoom));
+      const maxX = Math.floor(lon2tile(centerLon + (exportWidth / (2 * scale * cosLat)), zoom));
+      const minY = Math.floor(lat2tile(centerLat + (exportHeight / (2 * scale)), zoom));
+      const maxY = Math.floor(lat2tile(centerLat - (exportHeight / (2 * scale)), zoom));
+
+      const selectedSource = mapSourceSelect.value;
+      const promises = [];
+
+      for (let x = minX - 1; x <= maxX + 1; x++) {
+        for (let y = minY - 1; y <= maxY + 1; y++) {
+          if (toggleMap.checked) {
+            promises.push(loadTileAsync(`${selectedSource}/${zoom}/${x}/${y}`, getTileUrl(selectedSource, zoom, x, y), loadedMapTiles));
+          }
+        }
+      }
+
+      await Promise.all(promises);
+
+      // 1. Bakgrunnskart
+      if (toggleMap.checked) {
+        for (let x = minX - 1; x <= maxX + 1; x++) {
+          for (let y = minY - 1; y <= maxY + 1; y++) {
+            const key = `${selectedSource}/${zoom}/${x}/${y}`;
+            const tileData = loadedMapTiles.get(key);
+            if (tileData && tileData.loaded && !tileData.error) {
+              const n = Math.pow(2, zoom);
+              const tileLon = x / n * 360 - 180;
+              const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
+              const tileLat = latRad * 180 / Math.PI;
+
+              const pos = toCanvasCoords(tileLat, tileLon, exportWidth, exportHeight, scaleFactor);
+              const tileSize = (360 / n) * cosLat * scale;
+
+              finalCtx.drawImage(tileData.img, pos.x, pos.y, tileSize + 1, tileSize + 1);
+            }
+          }
+        }
+      }
+
+      // 2. Sporlinje
+      finalCtx.beginPath();
+      finalCtx.strokeStyle = "#0077b6";
+      finalCtx.lineWidth = 2.5 * scaleFactor;
+      trackPoints.forEach((p, index) => {
+        const pt = toCanvasCoords(p.lat, p.lon, exportWidth, exportHeight, scaleFactor);
+        if (index === 0) finalCtx.moveTo(pt.x, pt.y);
+        else finalCtx.lineTo(pt.x, pt.y);
+      });
+      finalCtx.stroke();
+
+      // 3. Tekst, Tittel og Høydekurve
+      const frameRect = frame.getBoundingClientRect();
+
+      if (titleContainer.style.display !== 'none') {
+        const rect = titleContainer.getBoundingClientRect();
+        const x = (rect.left - frameRect.left + (rect.width / 2)) * scaleFactor;
+        const y = (rect.top - frameRect.top + 16) * scaleFactor;
+        finalCtx.font = `800 ${18 * scaleFactor}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        finalCtx.fillStyle = "#0077b6";
+        finalCtx.textAlign = "center";
+        finalCtx.fillText(titleInput.value.toUpperCase(), x, y);
+      }
+
+      if (elevationContainer.style.display !== 'none') {
+        const rect = elevationContainer.getBoundingClientRect();
+        const x = (rect.left - frameRect.left) * scaleFactor;
+        const y = (rect.top - frameRect.top) * scaleFactor;
+
+        const tempEleCanvas = document.createElement('canvas');
+        tempEleCanvas.width = 292 * scaleFactor;
+        tempEleCanvas.height = 60 * scaleFactor;
+        const tempEleCtx = tempEleCanvas.getContext('2d');
+        
+        drawElevationProfileOnCanvas(tempEleCtx, scaleFactor);
+        finalCtx.drawImage(tempEleCanvas, x, y);
+      }
+
+      if (coordContainer.style.display !== 'none') {
+        const rect = coordContainer.getBoundingClientRect();
+        const x = (rect.left - frameRect.left + (rect.width / 2)) * scaleFactor;
+        const y = (rect.top - frameRect.top + 12) * scaleFactor;
+        finalCtx.font = `600 ${10 * scaleFactor}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        finalCtx.fillStyle = "#0077b6";
+        finalCtx.textAlign = "center";
+        finalCtx.fillText(coordText.textContent, x, y);
+      }
+
+      customDataLabels.forEach(lbl => {
+        const rect = lbl.element.getBoundingClientRect();
+        const x = (rect.left - frameRect.left + 4) * scaleFactor;
+        const y = (rect.top - frameRect.top + 12) * scaleFactor;
+        const text = lbl.element.querySelector('.draggable-label').textContent;
+        finalCtx.font = `bold ${11 * scaleFactor}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        finalCtx.fillStyle = "#0077b6";
+        finalCtx.textAlign = "left";
+        finalCtx.fillText(text, x, y);
+      });
+
+      // 4. Ramme
+      if (toggleBorder.checked) {
+        finalCtx.strokeStyle = "#0077b6";
+        finalCtx.lineWidth = 4 * scaleFactor;
+        finalCtx.strokeRect(0, 0, exportWidth, exportHeight);
+      }
+
+      hideProgress();
+
+      const link = document.createElement('a');
+      link.download = `gpx-spor-${exportWidth}x${exportHeight}.png`;
+      link.href = finalCanvas.toDataURL('image/png');
+      link.click();
+    }
+  </script>
+</body>
+</html>
