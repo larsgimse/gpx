@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Din GPX tur</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --bg-color: #111111;
+            --panel-bg: rgba(26, 26, 26, 0.95);
+            --text-color: #eeeeee;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            height: 100dvh; 
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            background: var(--panel-bg);
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #333;
+            border-radius: 8px;
+            z-index: 1000;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            min-height: 50px;
+        }
+        
+        .nav-buttons { display: flex; gap: 8px; align-items: center; z-index: 1001; }
+        
+        .btn {
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            cursor: pointer;
+            white-space: nowrap;
+            user-select: none;
+        }
+        
+        .btn:hover { background: #333; border-color: #666; }
+        .btn-upload { background: #3a3a3a; border-color: #555; }
+
+        .btn-toggle {
+            background: #222;
+            border: 1px solid #444;
+            color: #aaa;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-toggle .badge {
+            background: #444;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        .btn-toggle.active {
+            background: #2a3b2a !important;
+            border-color: #4cae4c !important;
+            color: #ffffff !important;
+        }
+
+        .btn-toggle.active .badge {
+            background: #4cae4c;
+            color: #ffffff;
+        }
+
+        .btn-reset { background: #222; border-color: #444; color: #ccc; }
+        .btn-download { background: #2a2a2a; border-color: #444; color: #fff; }
+
+        .select-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: #aaa;
+        }
+
+        .select-style {
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .dropdown-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            background: #1e1e1e;
+            min-width: 220px;
+            max-height: 70vh;
+            overflow-y: auto;
+            box-shadow: 0px 8px 20px rgba(0,0,0,0.8);
+            border: 1px solid #555;
+            border-radius: 8px;
+            z-index: 1200;
+            padding: 6px 0;
+        }
+
+        .dropdown-wrapper.open .dropdown-content {
+            display: block;
+        }
+
+        .dropdown-content button {
+            color: #eee;
+            padding: 10px 14px;
+            text-decoration: none;
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        .dropdown-content button:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-content button:hover, .dropdown-content button:active {
+            background-color: #333;
+            color: #fff;
+        }
+
+        .track-tools {
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .track-tools.visible {
+            display: flex;
+        }
+
+        #file-input { display: none; }
+
+        #map-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        #map { width: 100%; height: 100%; background: var(--bg-color); }
+
+        .leaflet-bottom.leaflet-left { bottom: 20px; left: 10px; }
+
+        #peaks-canvas-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 450;
+        }
+
+        #labels-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 500;
+        }
+
+        .direction-arrow {
+            position: absolute;
+            pointer-events: auto;
+            z-index: 520;
+            transform-origin: center center;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: default;
+            user-select: none;
+        }
+
+        .direction-arrow svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0px 1px 3px rgba(0,0,0,0.8));
+        }
+
+        .direction-arrow .arrow-delete {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 15px;
+            height: 15px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #222;
+            border: 1px solid #666;
+            color: #ff6666;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .direction-arrow:hover .arrow-delete { 
+            display: flex; 
+        }
+
+        .direction-arrow .arrow-delete:hover {
+            background: #ff3333;
+            color: #ffffff;
+            border-color: #ff3333;
+        }
+
+        .draggable-element {
+            position: absolute;
+            pointer-events: auto;
+            cursor: move;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            height: fit-content;
+            background: rgba(15, 15, 15, 0.85);
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            touch-action: none;
+            transition: background 0.2s, border 0.2s, box-shadow 0.2s;
+        }
+
+        .draggable-element.no-frame {
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            box-shadow: none !important;
+        }
+
+        .draggable-element.no-frame .draggable-label {
+            text-shadow: 0px 0px 4px #000, 1px 1px 2px #000;
+        }
+
+        .draggable-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            text-transform: uppercase;
+            color: #ffffff;
+            line-height: 1;
+        }
+
+        .draggable-title {
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: -9px;
+            right: -9px;
+            width: 16px;
+            height: 16px;
+            background: #222;
+            border: 1px solid #666;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            color: #ff6666;
+            line-height: 1;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .delete-btn:hover {
+            color: #ffffff;
+            background: #ff3333;
+            border-color: #ff3333;
+        }
+
+        #help-info-box {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            width: 310px;
+            background: rgba(20, 20, 20, 0.92);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px 14px;
+            z-index: 1000;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            color: #ccc;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        #help-info-box h4 {
+            color: #fff;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #help-info-box ul { padding-left: 16px; margin-top: 4px; }
+        #help-info-box li { margin-bottom: 4px; }
+
+        #close-help-btn { cursor: pointer; font-size: 14px; color: #888; font-weight: bold; }
+        #close-help-btn:hover { color: #fff; }
+
+        #export-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-width: 280px;
+        }
+
+        .modal-content h3 { font-size: 1rem; color: #fff; }
+
+        @media (max-width: 700px) {
+            header {
+                top: auto;
+                bottom: 15px;
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 8px;
+                justify-content: center;
+                background: rgba(20, 20, 20, 0.95);
+            }
+            .nav-buttons { width: 100%; justify-content: center; flex-wrap: wrap; }
+            .btn, .select-style { flex: 1; text-align: center; }
+            #help-info-box { bottom: 120px; right: 10px; left: 10px; width: auto; }
+            .dropdown-content { bottom: calc(100% + 6px); top: auto; }
+            .leaflet-bottom.leaflet-left { bottom: 130px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="nav-buttons">
+            <button id="btn-upload-trigger" class="btn btn-upload">📁 Last opp GPX</button>
+            <div id="track-tools" class="track-tools">
+                <button id="btn-toggle-peaks" class="btn btn-toggle">
+                    ⛰️ Fjelltopper <span id="toggle-status-badge" class="badge">AV</span>
+                </button>
+                
+                <div class="dropdown-wrapper" id="addon-dropdown">
+                    <button class="btn" id="addon-toggle-btn">➕ Tillegg ▾</button>
+                    <div class="dropdown-content">
+                        <button id="toggle-frame-btn" onclick="toggleFrames()">🔲 Ramme: PÅ</button>
+                        <button onclick="addCustomTitle()">📝 Legg til egen tittel</button>
+                        <button onclick="addAddon('date')">📅 Dato</button>
+                        <button onclick="addAddon('dist_total')">📏 Lengde totalt</button>
+                        <button onclick="addAddon('dist_top')">⛰️ Lengde til topp</button>
+                        <button onclick="addAddon('ele_gain')">📈 Total stigning</button>
+                        <button onclick="addAddon('max_ele')">🔴 Maks høyde</button>
+                        <button onclick="addAddon('time_total')">⏱️ Tid totalt</button>
+                        <button onclick="addAddon('time_top')">⏱️ Tid til høyeste topp</button>
+                        <button onclick="addAddon('start_time')">🚀 Starttid</button>
+                        <button onclick="addAddon('end_time')">🏁 Slutttid</button>
+                        <button onclick="addAddon('gps_start')">📍 GPS startpunkt</button>
+                        <button onclick="addAddon('profile')">📊 Stigningsprofil</button>
+                        <button id="toggle-direction-arrows-btn" onclick="toggleDirectionArrows()">➜ Retningspiler: AV</button>
+                    </div>
+                </div>
+
+                <div class="select-wrapper">
+                    <span>Linje:</span>
+                    <select id="line-style" class="select-style">
+                        <option value="corner">Vinkel</option>
+                        <option value="arc">Bue</option>
+                        <option value="straight">Rett</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-buttons">
+            <button id="btn-download-image" class="btn btn-download">📷 Last ned bilde</button>
+            <button id="btn-reset" class="btn btn-reset">🔄 Nullstill</button>
+        </div>
+    </header>
+
+    <input type="file" id="file-input" accept=".gpx" />
+
+    <div id="map-container">
+        <div id="map"></div>
+        <canvas id="peaks-canvas-layer"></canvas>
+        <div id="labels-layer"></div>
+
+        <div id="help-info-box">
+            <h4>Funksjonalitet <span id="close-help-btn" title="Lukk">×</span></h4>
+            <ul>
+                <li><b>Last opp GPX:</b> Kartet zoomer inn til sporet.</li>
+                <li><b>Tillegg:</b> Legg til turdata, stigningsprofil og slå av/på ramme rundt elementer.</li>
+                <li><b>Fjelltopper:</b> Slå PÅ/AV for å vise topper.</li>
+                <li><b>Bildeeksport:</b> Last ned hele kartvisningen i valgt kvalitet.</li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="export-modal">
+        <div class="modal-content">
+            <h3>Velg bildekvalitet</h3>
+            <select id="export-quality" class="select-style">
+                <option value="1">Standard (1x)</option>
+                <option value="2" selected>HD (2x)</option>
+                <option value="3">Full HD (3x)</option>
+                <option value="4">4K / Utskrift (4x)</option>
+            </select>
+            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 5px;">
+                <button id="modal-cancel" class="btn btn-reset">Avbryt</button>
+                <button id="modal-confirm" class="btn btn-upload">Lagre bilde</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
+
+    <script>
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const minRenderer = L.canvas({ tolerance: isTouchDevice ? 22 : 3 });
+
+        const START_LAT = 69.65;
+        const START_LON = 18.95;
+        const START_ZOOM = 9;
+
+        const mapDiv = document.getElementById('map');
+        const map = L.map('map', {
+            zoomControl: false,
+            maxZoom: 18,
+            renderer: minRenderer
+        }).setView([START_LAT, START_LON], START_ZOOM);
+
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_2o3a_1_671194bbedbad28841272141', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20,
+            crossOrigin: true
+        }).addTo(map);
+
+        let activeTrackLayer = null;
+        let gpxAnalysis = {};
+        let showFrames = true;
+
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('btn-upload-trigger');
+        const resetBtn = document.getElementById('btn-reset');
+        const trackTools = document.getElementById('track-tools');
+        const peaksBtn = document.getElementById('btn-toggle-peaks');
+        const toggleBadge = document.getElementById('toggle-status-badge');
+        const lineStyleSelect = document.getElementById('line-style');
+        const downloadImageBtn = document.getElementById('btn-download-image');
+        const exportModal = document.getElementById('export-modal');
+        const modalConfirm = document.getElementById('modal-confirm');
+        const modalCancel = document.getElementById('modal-cancel');
+        const helpInfoBox = document.getElementById('help-info-box');
+        const closeHelpBtn = document.getElementById('close-help-btn');
+
+        const addonDropdown = document.getElementById('addon-dropdown');
+        const addonToggleBtn = document.getElementById('addon-toggle-btn');
+
+        const peaksCanvas = document.getElementById('peaks-canvas-layer');
+        const peaksCtx = peaksCanvas.getContext('2d');
+        const labelsLayer = document.getElementById('labels-layer');
+
+        let peaksEnabled = false;
+        let detectedPeaks = [];
+        let topAnnotations = [];
+        let customElements = [];
+        let directionArrowsEnabled = false;
+        let directionArrows = [];
+
+        addonToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            addonDropdown.classList.toggle('open');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!addonDropdown.contains(e.target)) {
+                addonDropdown.classList.remove('open');
+            }
+        });
+
+        function toggleFrames() {
+            showFrames = !showFrames;
+            const btn = document.getElementById('toggle-frame-btn');
+            btn.textContent = showFrames ? '🔲 Ramme: PÅ' : '🔳 Ramme: AV';
+
+            document.querySelectorAll('.draggable-element').forEach(el => {
+                if (showFrames) {
+                    el.classList.remove('no-frame');
+                } else {
+                    el.classList.add('no-frame');
+                }
+            });
+        }
+
+        function resizeCanvas() {
+            peaksCanvas.width = window.innerWidth;
+            peaksCanvas.height = window.innerHeight;
+            redrawPeakLines();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        closeHelpBtn.addEventListener('click', () => { helpInfoBox.style.display = 'none'; });
+
+        uploadBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            helpInfoBox.style.display = 'none';
+            lesOgLeggTilGpx(files[0]);
+        });
+
+        function lesOgLeggTilGpx(file) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                if (activeTrackLayer) {
+                    map.removeLayer(activeTrackLayer);
+                    activeTrackLayer = null;
+                }
+                
+                clearPeaks();
+                clearCustomElements();
+                directionArrows.forEach(a => a.element.remove());
+                directionArrows = [];
+                directionArrowsEnabled = false;
+                const arrowBtnOnLoad = document.getElementById('toggle-direction-arrows-btn');
+                if (arrowBtnOnLoad) {
+                    arrowBtnOnLoad.textContent = '➜ Retningspiler: AV';
+                    arrowBtnOnLoad.classList.remove('active');
+                }
+                peaksEnabled = false;
+                peaksBtn.classList.remove('active');
+                toggleBadge.textContent = 'AV';
+                trackTools.classList.remove('visible');
+
+                const track = new L.GPX(evt.target.result, {
+                    async: true,
+                    polyline_options: {
+                        color: '#ffffff',
+                        opacity: 0.9,
+                        weight: 3.5,
+                        lineCap: 'round'
+                    },
+                    marker_options: { startIconUrl: null, endIconUrl: null, shadowUrl: null }
+                });
+
+                track.on('loaded', function(e) {
+                    const layer = e.target;
+                    const trackBounds = layer.getBounds();
+                    if (!trackBounds.isValid()) return;
+
+                    activeTrackLayer = layer;
+                    trackTools.classList.add('visible');
+
+                    analyzeGpxXml(evt.target.result);
+                    map.fitBounds(trackBounds, { padding: [80, 80] });
+                });
+
+                track.addTo(map);
+            };
+            reader.readAsText(file);
+        }
+
+        function analyzeGpxXml(gpxText) {
+            const xml = new DOMParser().parseFromString(gpxText, 'application/xml');
+            const trkpts = Array.from(xml.querySelectorAll('trkpt'));
+            if (!trkpts.length) {
+                gpxAnalysis = {};
+                return;
+            }
+
+            const rawPts = trkpts.map(pt => {
+                const lat = parseFloat(pt.getAttribute('lat'));
+                const lng = parseFloat(pt.getAttribute('lon'));
+                const eleNode = pt.querySelector('ele');
+                const timeNode = pt.querySelector('time');
+                const ele = eleNode ? parseFloat(eleNode.textContent) : 0;
+                const time = timeNode ? new Date(timeNode.textContent) : null;
+
+                return {
+                    lat, lng,
+                    ele: Number.isFinite(ele) ? ele : 0,
+                    meta: {
+                        ele: Number.isFinite(ele) ? ele : 0,
+                        time: time && !isNaN(time.getTime()) ? time : null
+                    }
+                };
+            }).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+
+            if (!rawPts.length) return;
+
+            let profilePoints = [];
+            let totalDist = 0;
+            let totalGain = 0;
+            let maxEle = -Infinity;
+            let maxEleIdx = 0;
+
+            for (let i = 0; i < rawPts.length; i++) {
+                const p = rawPts[i];
+
+                if (i > 0) {
+                    const prev = rawPts[i - 1];
+                    const d = L.latLng(p.lat, p.lng).distanceTo([prev.lat, prev.lng]);
+                    totalDist += d;
+
+                    const diff = p.ele - prev.ele;
+                    if (diff > 0) totalGain += diff;
+                }
+
+                if (p.ele > maxEle) {
+                    maxEle = p.ele;
+                    maxEleIdx = i;
+                }
+
+                profilePoints.push({
+                    dist: totalDist,
+                    ele: p.ele
+                });
+            }
+
+            const startTime = rawPts[0].meta.time;
+            const endTime = rawPts[rawPts.length - 1].meta.time;
+            const topTime = rawPts[maxEleIdx]?.meta.time || null;
+            const distToTop = profilePoints[maxEleIdx]?.dist || 0;
+
+            gpxAnalysis = {
+                pts: rawPts,
+                profilePoints,
+                totalDist,
+                date: startTime ? startTime.toLocaleDateString('no-NO') : 'Ukjent',
+                dist_total: (totalDist / 1000).toFixed(2) + ' km',
+                dist_top: (distToTop / 1000).toFixed(2) + ' km',
+                ele_gain: Math.round(totalGain) + ' m',
+                time_total: (startTime && endTime) ? formatDuration(endTime - startTime) : 'N/A',
+                time_top: (startTime && topTime) ? formatDuration(topTime - startTime) : 'N/A',
+                start_time: startTime ? startTime.toLocaleTimeString('no-NO', {hour:'2-digit', minute:'2-digit'}) : 'N/A',
+                end_time: endTime ? endTime.toLocaleTimeString('no-NO', {hour:'2-digit', minute:'2-digit'}) : 'N/A',
+                gps_start: rawPts[0].lat.toFixed(4) + '° N, ' + rawPts[0].lng.toFixed(4) + '° Ø',
+                maxEle: Math.round(maxEle),
+                maxEleIdx
+            };
+        }
+
+        function drawProfileOnCanvas(ctx, width, height, scaleFactor = 1) {
+            const data = gpxAnalysis.profilePoints;
+            if (!data || data.length === 0) return;
+
+            let eles = data.map(p => p.ele);
+            let minE = Math.min(...eles);
+            let maxE = Math.max(...eles);
+            let range = (maxE - minE) || 1;
+            let maxDist = gpxAnalysis.totalDist || 1;
+
+            ctx.clearRect(0, 0, width, height);
+
+            ctx.fillStyle = showFrames ? '#1c1c1c' : 'rgba(15, 15, 15, 0.6)';
+            ctx.fillRect(0, 0, width, height);
+
+            const paddingLeft = 10 * scaleFactor;
+            const paddingRight = 10 * scaleFactor;
+            const paddingTop = 20 * scaleFactor;
+            const paddingBottom = 12 * scaleFactor;
+            const drawW = width - paddingLeft - paddingRight;
+            const drawH = height - paddingTop - paddingBottom;
+
+            let gradient = ctx.createLinearGradient(0, paddingTop, 0, height - paddingBottom);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0.05)');
+
+            ctx.beginPath();
+            ctx.moveTo(paddingLeft, height - paddingBottom);
+
+            for (let i = 0; i < data.length; i++) {
+                let x = paddingLeft + (data[i].dist / maxDist) * drawW;
+                let y = height - paddingBottom - ((data[i].ele - minE) / range) * drawH;
+                ctx.lineTo(x, y);
+            }
+
+            ctx.lineTo(paddingLeft + drawW, height - paddingBottom);
+            ctx.closePath();
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2 * scaleFactor;
+
+            for (let i = 0; i < data.length; i++) {
+                let x = paddingLeft + (data[i].dist / maxDist) * drawW;
+                let y = height - paddingBottom - ((data[i].ele - minE) / range) * drawH;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            let topPt = data[gpxAnalysis.maxEleIdx];
+            if (topPt) {
+                let topX = paddingLeft + (topPt.dist / maxDist) * drawW;
+                let topY = height - paddingBottom - ((maxE - minE) / range) * drawH;
+
+                ctx.fillStyle = '#ff4444';
+                ctx.beginPath();
+                ctx.arc(topX, topY, 3.5 * scaleFactor, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `bold ${9 * scaleFactor}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText('MAKS ' + gpxAnalysis.maxEle + 'm', topX, topY - (5 * scaleFactor));
+            }
+        }
+
+        function formatDuration(ms) {
+            let sec = Math.floor(ms / 1000);
+            let hrs = Math.floor(sec / 3600);
+            sec %= 3600;
+            let mins = Math.floor(sec / 60);
+            return (hrs > 0 ? hrs + 't ' : '') + mins + 'm';
+        }
+
+        function addAddon(type) {
+            addonDropdown.classList.remove('open');
+
+            if (!gpxAnalysis.pts) {
+                alert('Last opp et GPX-spor først!');
+                return;
+            }
+
+            let text = "";
+
+            switch(type) {
+                case 'date': text = `DATO: ${gpxAnalysis.date}`; break;
+                case 'dist_total': text = `LENGDE TOTALT: ${gpxAnalysis.dist_total}`; break;
+                case 'dist_top':
+                    createTopAnnotation(`LENGDE TIL TOPP: ${gpxAnalysis.dist_top}`);
+                    return;
+                case 'ele_gain': text = `TOTAL STIGNING: ${gpxAnalysis.ele_gain}`; break;
+                case 'max_ele':
+                    createTopAnnotation(`MAKS HØYDE: ${gpxAnalysis.maxEle} m`);
+                    return;
+                case 'time_total': text = `TID TOTALT: ${gpxAnalysis.time_total}`; break;
+                case 'time_top':
+                    createTopAnnotation(`TID TIL HØYESTE TOPP: ${gpxAnalysis.time_top}`);
+                    return;
+                case 'start_time': text = `STARTTID: ${gpxAnalysis.start_time}`; break;
+                case 'end_time': text = `SLUTTTID: ${gpxAnalysis.end_time}`; break;
+                case 'gps_start': 
+                    createGpsStartAnnotation();
+                    return;
+                case 'profile':
+                    createProfileElement();
+                    return;
+            }
+
+            createGenericElement(text);
+        }
+
+        function createTopAnnotation(text) {
+            const topPt = gpxAnalysis.pts[gpxAnalysis.maxEleIdx];
+            if (!topPt) return;
+
+            const labelContainer = document.createElement('div');
+            labelContainer.className = 'draggable-element top-annotation' + (showFrames ? '' : ' no-frame');
+            labelContainer.innerHTML = `
+                <span class="draggable-label">${text}</span>
+                <span class="delete-btn" title="Fjern">×</span>
+            `;
+
+            labelsLayer.appendChild(labelContainer);
+
+            const data = {
+                id: Date.now() + Math.random(),
+                lat: topPt.lat,
+                lon: topPt.lng,
+                relX: 25,
+                relY: -20,
+                element: labelContainer
+            };
+
+            const pt = map.latLngToContainerPoint([data.lat, data.lon]);
+            labelContainer.style.left = `${pt.x + data.relX}px`;
+            labelContainer.style.top = `${pt.y + data.relY}px`;
+
+            labelContainer.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                labelContainer.remove();
+                topAnnotations = topAnnotations.filter(a => a.id !== data.id);
+                redrawPeakLines();
+            });
+
+            topAnnotations.push(data);
+            makeTopAnnotationDraggable(labelContainer, data);
+            redrawPeakLines();
+        }
+
+        function makeTopAnnotationDraggable(element, data) {
+            let isDragging = false;
+            let startMouseX = 0, startMouseY = 0;
+            let startRelX = 0, startRelY = 0;
+
+            const startDrag = (e) => {
+                if (e.target.classList.contains('delete-btn')) return;
+                isDragging = true;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                startMouseX = clientX;
+                startMouseY = clientY;
+                startRelX = data.relX;
+                startRelY = data.relY;
+                e.stopPropagation();
+            };
+
+            const doDrag = (e) => {
+                if (!isDragging) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                data.relX = startRelX + (clientX - startMouseX);
+                data.relY = startRelY + (clientY - startMouseY);
+                updateTopAnnotationPositions();
+            };
+
+            const stopDrag = () => { isDragging = false; };
+
+            element.addEventListener('mousedown', startDrag);
+            window.addEventListener('mousemove', doDrag);
+            window.addEventListener('mouseup', stopDrag);
+            element.addEventListener('touchstart', startDrag, { passive: true });
+            window.addEventListener('touchmove', doDrag, { passive: true });
+            window.addEventListener('touchend', stopDrag);
+        }
+
+        function updateTopAnnotationPositions() {
+            topAnnotations.forEach(a => {
+                const pt = map.latLngToContainerPoint([a.lat, a.lon]);
+                a.element.style.left = `${pt.x + a.relX}px`;
+                a.element.style.top = `${pt.y + a.relY}px`;
+            });
+            redrawPeakLines();
+        }
+
+        function createGpsStartAnnotation() {
+            const startPt = gpxAnalysis.pts[0];
+            createPeakAnnotation({
+                name: gpxAnalysis.gps_start,
+                lat: startPt.lat,
+                lon: startPt.lng
+            });
+        }
+
+        function addCustomTitle() {
+            addonDropdown.classList.remove('open');
+            let input = prompt("Skriv inn egen tittel:");
+            if (input && input.trim() !== "") {
+                createGenericElement(input.trim().toUpperCase(), true);
+            }
+        }
+
+        function createGenericElement(content, isTitle = false) {
+            const el = document.createElement('div');
+            el.className = 'draggable-element' + (showFrames ? '' : ' no-frame');
+            if (isTitle) el.classList.add('draggable-title');
+
+            el.innerHTML = `
+                <span class="draggable-label ${isTitle ? 'draggable-title' : ''}">${content}</span>
+                <span class="delete-btn" title="Fjern">×</span>
+            `;
+
+            labelsLayer.appendChild(el);
+
+            el.style.left = `${60 + Math.random() * 40}px`;
+            el.style.top = `${120 + Math.random() * 40}px`;
+
+            el.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                el.remove();
+            });
+
+            makeElementDraggable(el);
+            customElements.push(el);
+        }
+
+        function createProfileElement() {
+            const el = document.createElement('div');
+            el.className = 'draggable-element profile-element' + (showFrames ? '' : ' no-frame');
+            el.style.flexDirection = 'column';
+            el.style.alignItems = 'flex-start';
+
+            let canvas = document.createElement('canvas');
+            canvas.width = 240;
+            canvas.height = 80;
+
+            drawProfileOnCanvas(canvas.getContext('2d'), 240, 80, 1);
+
+            const label = document.createElement('span');
+            label.className = 'draggable-label';
+            label.style.marginBottom = '3px';
+            label.textContent = 'STIGNINGSPROFIL';
+
+            const deleteBtn = document.createElement('span');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.title = 'Fjern';
+            deleteBtn.textContent = '×';
+
+            el.appendChild(label);
+            el.appendChild(canvas);
+            el.appendChild(deleteBtn);
+
+            labelsLayer.appendChild(el);
+
+            el.style.left = `${60 + Math.random() * 30}px`;
+            el.style.top = `${150 + Math.random() * 30}px`;
+
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                el.remove();
+            });
+
+            makeElementDraggable(el);
+            customElements.push(el);
+        }
+
+        function makeElementDraggable(element) {
+            let isDragging = false;
+            let startX = 0, startY = 0;
+            let initialLeft = 0, initialTop = 0;
+
+            const startDrag = (e) => {
+                if (e.target.classList.contains('delete-btn')) return;
+                isDragging = true;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                startX = clientX;
+                startY = clientY;
+                initialLeft = element.offsetLeft;
+                initialTop = element.offsetTop;
+                e.stopPropagation();
+            };
+
+            const doDrag = (e) => {
+                if (!isDragging) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                element.style.left = `${initialLeft + (clientX - startX)}px`;
+                element.style.top = `${initialTop + (clientY - startY)}px`;
+            };
+
+            const stopDrag = () => { isDragging = false; };
+
+            element.addEventListener('mousedown', startDrag);
+            window.addEventListener('mousemove', doDrag);
+            window.addEventListener('mouseup', stopDrag);
+
+            element.addEventListener('touchstart', startDrag, { passive: true });
+            window.addEventListener('touchmove', doDrag, { passive: true });
+            window.addEventListener('touchend', stopDrag);
+        }
+
+        function clearCustomElements() {
+            customElements.forEach(el => el.remove());
+            customElements = [];
+        }
+
+        function toggleDirectionArrows() {
+            if (!gpxAnalysis?.pts?.length) {
+                alert('Last opp et GPX-spor først!');
+                return;
+            }
+
+            directionArrowsEnabled = !directionArrowsEnabled;
+            const btn = document.getElementById('toggle-direction-arrows-btn');
+            btn.textContent = directionArrowsEnabled ? '➜ Retningspiler: PÅ' : '➜ Retningspiler: AV';
+            btn.classList.toggle('active', directionArrowsEnabled);
+
+            if (directionArrowsEnabled) {
+                if (directionArrows.length === 0) createDirectionArrows();
+                directionArrows.forEach(a => a.element.style.display = 'flex');
+                updateDirectionArrowPositions();
+            } else {
+                directionArrows.forEach(a => a.element.style.display = 'none');
+            }
+        }
+
+        function createDirectionArrows() {
+            directionArrows.forEach(a => a.element.remove());
+            directionArrows = [];
+
+            const pts = gpxAnalysis.pts;
+            if (!pts || pts.length < 2) return;
+
+            const count = Math.min(10, Math.max(1, Math.floor(pts.length / 150)));
+            for (let n = 1; n <= count; n++) {
+                const idx = Math.round((n / (count + 1)) * (pts.length - 1));
+                const p = pts[idx];
+
+                const el = document.createElement('div');
+                el.className = 'direction-arrow';
+                
+                const svgNS = "http://www.w3.org/2000/svg";
+                const svg = document.createElementNS(svgNS, "svg");
+                svg.setAttribute("viewBox", "0 0 24 24");
+                
+                const path = document.createElementNS(svgNS, "path");
+                path.setAttribute("d", "M 6 12 L 18 12 M 13 7 L 18 12 L 13 17");
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke", "#ffffff");
+                path.setAttribute("stroke-width", "3.5");
+                path.setAttribute("stroke-linecap", "round");
+                path.setAttribute("stroke-linejoin", "round");
+                svg.appendChild(path);
+
+                const deleteBtn = document.createElement('span');
+                deleteBtn.className = 'arrow-delete';
+                deleteBtn.title = 'Fjern pil';
+                deleteBtn.textContent = '×';
+
+                el.appendChild(svg);
+                el.appendChild(deleteBtn);
+                labelsLayer.appendChild(el);
+
+                const data = { id: Date.now() + Math.random(), idx, lat: p.lat, lon: p.lng, element: el };
+
+                deleteBtn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    el.remove();
+                    directionArrows = directionArrows.filter(a => a.id !== data.id);
+                });
+
+                directionArrows.push(data);
+            }
+            updateDirectionArrowPositions();
+        }
+
+        function updateDirectionArrowPositions() {
+            directionArrows.forEach(a => {
+                if (!a.element.isConnected) return;
+                const idx = a.idx;
+                const pts = gpxAnalysis.pts;
+                const p = pts[idx];
+
+                const offset = 120;
+                const prev = pts[Math.max(0, idx - offset)];
+                const next = pts[Math.min(pts.length - 1, idx + offset)];
+
+                const screenA = map.latLngToContainerPoint([prev.lat, prev.lng]);
+                const screenB = map.latLngToContainerPoint([next.lat, next.lng]);
+
+                const angle = Math.atan2(screenB.y - screenA.y, screenB.x - screenA.x) * 180 / Math.PI;
+                const pt = map.latLngToContainerPoint([p.lat, p.lng]);
+
+                a.element.style.left = `${pt.x - 12}px`;
+                a.element.style.top = `${pt.y - 12}px`;
+                a.element.style.transform = `rotate(${angle}deg)`;
+            });
+        }
+
+        function drawDirectionArrowsOnCanvas(ctx) {
+            if (!directionArrowsEnabled) return;
+
+            directionArrows.forEach(a => {
+                const pts = gpxAnalysis.pts;
+                if (!pts || !pts[a.idx]) return;
+
+                const idx = a.idx;
+                const p = pts[idx];
+
+                const offset = 120;
+                const prev = pts[Math.max(0, idx - offset)];
+                const next = pts[Math.min(pts.length - 1, idx + offset)];
+
+                const A = map.latLngToContainerPoint([prev.lat, prev.lng]);
+                const B = map.latLngToContainerPoint([next.lat, next.lng]);
+                const pt = map.latLngToContainerPoint([p.lat, p.lng]);
+
+                const angle = Math.atan2(B.y - A.y, B.x - A.x);
+
+                ctx.save();
+                ctx.translate(pt.x, pt.y);
+                ctx.rotate(angle);
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                ctx.lineWidth = 3.5;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                ctx.beginPath();
+                ctx.moveTo(-6, 0);
+                ctx.lineTo(6, 0);
+                ctx.moveTo(1, -5);
+                ctx.lineTo(6, 0);
+                ctx.lineTo(1, 5);
+                ctx.stroke();
+
+                ctx.restore();
+            });
+        }
+
+        peaksBtn.addEventListener('click', () => {
+            peaksEnabled = !peaksEnabled;
+            peaksBtn.classList.toggle('active', peaksEnabled);
+            toggleBadge.textContent = peaksEnabled ? 'PÅ' : 'AV';
+            
+            if (peaksEnabled) {
+                fetchPeaksForCurrentView();
+            } else {
+                clearPeaks();
+            }
+        });
+
+        map.on('move zoom', () => {
+            if (detectedPeaks.length > 0) {
+                updatePeakPositions();
+            }
+            if (topAnnotations.length > 0) {
+                updateTopAnnotationPositions();
+            }
+            if (directionArrows.length > 0) {
+                updateDirectionArrowPositions();
+            }
+        });
+
+        lineStyleSelect.addEventListener('change', () => redrawPeakLines());
+
+        function clearTopAnnotations() {
+            topAnnotations.forEach(a => a.element.remove());
+            topAnnotations = [];
+            redrawPeakLines();
+        }
+
+        function clearPeaks() {
+            detectedPeaks.forEach(p => p.element.remove());
+            detectedPeaks = [];
+            peaksCtx.clearRect(0, 0, peaksCanvas.width, peaksCanvas.height);
+        }
+
+        async function fetchPeaksForCurrentView() {
+            const bounds = map.getBounds();
+            const minLat = bounds.getSouth();
+            const maxLat = bounds.getNorth();
+            const minLon = bounds.getWest();
+            const maxLon = bounds.getEast();
+
+            let peaks = [];
+
+            try {
+                const url = `https://ws.geonorge.no/stedsnavn/v1/punkt?nordmin=${minLat}&nordmaks=${maxLat}&ostmin=${minLon}&ostmaks=${maxLon}&navneobjekttype=Fjell*&maxAntall=50`;
+                const res = await fetch(url, { mode: 'cors' });
+                if (res.ok) {
+                    const json = await res.json();
+                    peaks = parseKartverketGeonorge(json);
+                }
+            } catch (err) {
+                console.warn("Kartverket API feilet, prøver Overpass...", err);
+            }
+
+            if (peaks.length === 0) {
+                try {
+                    const overpassQuery = `[out:json];node["natural"="peak"](${minLat},${minLon},${maxLat},${maxLon});out;`;
+                    const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`);
+                    if (res.ok) {
+                        const json = await res.json();
+                        peaks = parseOverpass(json);
+                    }
+                } catch (err) {
+                    console.error("Overpass API feilet:", err);
+                }
+            }
+
+            renderPeaks(peaks);
+        }
+
+        function parseKartverketGeonorge(data) {
+            if (!data || !data.navn) return [];
+            return data.navn.map(item => ({
+                name: item.stedsnavn?.[0]?.skrivemåte || item.stedsnavn,
+                lat: item.representasjonspunkt?.nord,
+                lon: item.representasjonspunkt?.øst,
+                elevation: item.meterOverHavet || item.stedsnavn?.[0]?.meterOverHavet
+            })).filter(p => p.name && p.lat && p.lon);
+        }
+
+        function parseOverpass(data) {
+            if (!data || !data.elements) return [];
+            return data.elements.map(el => ({
+                name: el.tags?.name || "Ukjent topp",
+                lat: el.lat,
+                lon: el.lon,
+                elevation: el.tags?.ele ? parseInt(el.tags.ele) : null
+            }));
+        }
+
+        function renderPeaks(apiPeaks) {
+            clearPeaks();
+            const addedNames = new Set();
+
+            apiPeaks.forEach(peak => {
+                if (addedNames.has(peak.name)) return;
+                addedNames.add(peak.name);
+                createPeakAnnotation(peak);
+            });
+
+            redrawPeakLines();
+        }
+
+        function createPeakAnnotation(peak) {
+            const labelContainer = document.createElement('div');
+            labelContainer.className = 'draggable-element' + (showFrames ? '' : ' no-frame');
+            
+            const heightText = peak.elevation ? ` ${peak.elevation}m` : '';
+
+            labelContainer.innerHTML = `
+                <span class="draggable-label">${peak.name.toUpperCase()}${heightText}</span>
+                <span class="delete-btn" title="Fjern">×</span>
+            `;
+
+            let relX = 25;
+            let relY = -20;
+
+            labelsLayer.appendChild(labelContainer);
+
+            const peakData = {
+                id: Date.now() + Math.random(),
+                lat: peak.lat,
+                lon: peak.lon,
+                relX: relX,
+                relY: relY,
+                element: labelContainer
+            };
+
+            const pt = map.latLngToContainerPoint([peak.lat, peak.lon]);
+            labelContainer.style.left = `${pt.x + relX}px`;
+            labelContainer.style.top = `${pt.y + relY}px`;
+
+            labelContainer.querySelector('.delete-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                labelContainer.remove();
+                detectedPeaks = detectedPeaks.filter(p => p.id !== peakData.id);
+                redrawPeakLines();
+            });
+
+            detectedPeaks.push(peakData);
+            makePeakDraggable(labelContainer, peakData);
+        }
+
+        function updatePeakPositions() {
+            detectedPeaks.forEach(p => {
+                const pt = map.latLngToContainerPoint([p.lat, p.lon]);
+                p.element.style.left = `${pt.x + p.relX}px`;
+                p.element.style.top = `${pt.y + p.relY}px`;
+            });
+            redrawPeakLines();
+        }
+
+        function makePeakDraggable(element, data) {
+            let isDragging = false;
+            let startMouseX = 0, startMouseY = 0;
+            let startRelX = 0, startRelY = 0;
+
+            const startDrag = (e) => {
+                if (e.target.classList.contains('delete-btn')) return;
+                isDragging = true;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                startMouseX = clientX;
+                startMouseY = clientY;
+                startRelX = data.relX;
+                startRelY = data.relY;
+                e.stopPropagation();
+            };
+
+            const doDrag = (e) => {
+                if (!isDragging) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                data.relX = startRelX + (clientX - startMouseX);
+                data.relY = startRelY + (clientY - startMouseY);
+                updatePeakPositions();
+            };
+
+            const stopDrag = () => { isDragging = false; };
+
+            element.addEventListener('mousedown', startDrag);
+            window.addEventListener('mousemove', doDrag);
+            window.addEventListener('mouseup', stopDrag);
+
+            element.addEventListener('touchstart', startDrag, { passive: true });
+            window.addEventListener('touchmove', doDrag, { passive: true });
+            window.addEventListener('touchend', stopDrag);
+        }
+
+        function getTargetPointOnElement(anchor, elemX, elemY, elemW, elemH) {
+            const centerX = elemX + elemW / 2;
+            const centerY = elemY + elemH / 2;
+
+            if (anchor.x < elemX) {
+                return { x: elemX, y: centerY };
+            } else if (anchor.x > elemX + elemW) {
+                return { x: elemX + elemW, y: centerY };
+            } else if (anchor.y < elemY) {
+                return { x: centerX, y: elemY };
+            } else {
+                return { x: centerX, y: elemY + elemH };
+            }
+        }
+
+        function redrawPeakLines() {
+            peaksCtx.clearRect(0, 0, peaksCanvas.width, peaksCanvas.height);
+
+            const style = lineStyleSelect.value;
+            const lineColor = "#ffffff";
+
+            detectedPeaks.forEach(p => {
+                const anchor = map.latLngToContainerPoint([p.lat, p.lon]);
+
+                peaksCtx.beginPath();
+                peaksCtx.arc(anchor.x, anchor.y, 3.5, 0, Math.PI * 2);
+                peaksCtx.fillStyle = lineColor;
+                peaksCtx.fill();
+
+                const elemW = p.element.offsetWidth || 50;
+                const elemH = p.element.offsetHeight || 20;
+                const elemX = anchor.x + p.relX;
+                const elemY = anchor.y + p.relY;
+
+                const target = getTargetPointOnElement(anchor, elemX, elemY, elemW, elemH);
+
+                peaksCtx.beginPath();
+                peaksCtx.setLineDash([3, 3]);
+                peaksCtx.strokeStyle = lineColor;
+                peaksCtx.lineWidth = 1.2;
+
+                if (style === 'arc') {
+                    const cpX = anchor.x + p.relX * 0.8;
+                    const cpY = anchor.y;
+                    peaksCtx.moveTo(anchor.x, anchor.y);
+                    peaksCtx.quadraticCurveTo(cpX, cpY, target.x, target.y);
+                } else if (style === 'straight') {
+                    peaksCtx.moveTo(anchor.x, anchor.y);
+                    peaksCtx.lineTo(target.x, target.y);
+                } else {
+                    peaksCtx.moveTo(anchor.x, anchor.y);
+                    peaksCtx.lineTo(target.x, anchor.y);
+                    peaksCtx.lineTo(target.x, target.y);
+                }
+
+                peaksCtx.stroke();
+                peaksCtx.setLineDash([]);
+            });
+
+            if (topAnnotations.length > 0 && gpxAnalysis?.pts?.length > 0) {
+                const topPt = gpxAnalysis.pts[gpxAnalysis.maxEleIdx];
+                const anchor = map.latLngToContainerPoint([topPt.lat, topPt.lng]);
+
+                peaksCtx.beginPath();
+                peaksCtx.arc(anchor.x, anchor.y, 5, 0, Math.PI * 2);
+                peaksCtx.fillStyle = '#ff4444';
+                peaksCtx.fill();
+                peaksCtx.beginPath();
+                peaksCtx.arc(anchor.x, anchor.y, 2, 0, Math.PI * 2);
+                peaksCtx.fillStyle = '#ffffff';
+                peaksCtx.fill();
+
+                topAnnotations.forEach(a => {
+                    const elemW = a.element.offsetWidth || 50;
+                    const elemH = a.element.offsetHeight || 20;
+                    const elemX = anchor.x + a.relX;
+                    const elemY = anchor.y + a.relY;
+
+                    const target = getTargetPointOnElement(anchor, elemX, elemY, elemW, elemH);
+
+                    peaksCtx.beginPath();
+                    peaksCtx.setLineDash([3, 3]);
+                    peaksCtx.strokeStyle = '#ff4444';
+                    peaksCtx.lineWidth = 1.2;
+
+                    if (style === 'arc') {
+                        const cpX = anchor.x + a.relX * 0.8;
+                        const cpY = anchor.y;
+                        peaksCtx.moveTo(anchor.x, anchor.y);
+                        peaksCtx.quadraticCurveTo(cpX, cpY, target.x, target.y);
+                    } else if (style === 'straight') {
+                        peaksCtx.moveTo(anchor.x, anchor.y);
+                        peaksCtx.lineTo(target.x, target.y);
+                    } else {
+                        peaksCtx.moveTo(anchor.x, anchor.y);
+                        peaksCtx.lineTo(target.x, anchor.y);
+                        peaksCtx.lineTo(target.x, target.y);
+                    }
+
+                    peaksCtx.stroke();
+                    peaksCtx.setLineDash([]);
+                });
+            }
+        }
+
+        downloadImageBtn.addEventListener('click', () => {
+            exportModal.style.display = 'flex';
+        });
+
+        modalCancel.addEventListener('click', () => {
+            exportModal.style.display = 'none';
+        });
+
+        modalConfirm.addEventListener('click', async () => {
+            exportModal.style.display = 'none';
+            const scale = parseFloat(document.getElementById('export-quality').value);
+            await generateAndDownloadImage(scale);
+        });
+
+        async function generateAndDownloadImage(scale) {
+            const mapRect = mapDiv.getBoundingClientRect();
+            const exportW = Math.round(mapRect.width);
+            const exportH = Math.round(mapRect.height);
+
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = Math.round(exportW * scale);
+            exportCanvas.height = Math.round(exportH * scale);
+            const ctx = exportCanvas.getContext('2d');
+
+            ctx.scale(scale, scale);
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, exportW, exportH);
+
+            const tiles = document.querySelectorAll('.leaflet-tile-container img');
+            for (const tile of tiles) {
+                const tileRect = tile.getBoundingClientRect();
+                const x = tileRect.left - mapRect.left;
+                const y = tileRect.top - mapRect.top;
+
+                try {
+                    const img = new Image();
+                    img.crossOrigin = 'Anonymous';
+                    await new Promise(resolve => {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                        img.src = tile.src;
+                    });
+
+                    if (img.complete && img.naturalWidth !== 0) {
+                        ctx.drawImage(img, x, y, tileRect.width, tileRect.height);
+                    }
+                } catch (e) {
+                    console.warn('Kunne ikke tegne kartflis', e);
+                }
+            }
+
+            if (gpxAnalysis?.pts?.length > 0) {
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                ctx.lineWidth = 3.5;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                gpxAnalysis.pts.forEach((p, i) => {
+                    const pt = map.latLngToContainerPoint([p.lat, p.lng]);
+                    if (i === 0) ctx.moveTo(pt.x, pt.y);
+                    else ctx.lineTo(pt.x, pt.y);
+                });
+
+                ctx.stroke();
+            }
+
+            ctx.drawImage(peaksCanvas, 0, 0, exportW, exportH);
+
+            drawDirectionArrowsOnCanvas(ctx);
+
+            document.querySelectorAll('.draggable-element').forEach(el => {
+                const rect = el.getBoundingClientRect();
+                const x = rect.left - mapRect.left;
+                const y = rect.top - mapRect.top;
+
+                if (x + rect.width <= 0 || x >= exportW ||
+                    y + rect.height <= 0 || y >= exportH) return;
+
+                if (showFrames) {
+                    ctx.fillStyle = 'rgba(15,15,15,0.85)';
+                    ctx.fillRect(x, y, rect.width, rect.height);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x, y, rect.width, rect.height);
+                }
+
+                const isProfile = el.classList.contains('profile-element');
+
+                if (isProfile) {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = 240 * scale;
+                    tempCanvas.height = 80 * scale;
+
+                    drawProfileOnCanvas(
+                        tempCanvas.getContext('2d'),
+                        tempCanvas.width,
+                        tempCanvas.height,
+                        scale
+                    );
+
+                    ctx.drawImage(tempCanvas, x + 8, y + 22, 240, 80);
+                }
+
+                const label = el.querySelector('.draggable-label');
+                if (label) {
+                    ctx.fillStyle = '#ffffff';
+
+                    const isTitle = el.classList.contains('draggable-title');
+                    ctx.font = isTitle ? 'bold 16px sans-serif' : 'bold 11px sans-serif';
+
+                    if (!showFrames) {
+                        ctx.shadowColor = 'black';
+                        ctx.shadowBlur = 4;
+                    }
+
+                    ctx.fillText(
+                        label.textContent,
+                        x + 8,
+                        y + (isTitle ? 18 : 13)
+                    );
+
+                    ctx.shadowColor = 'transparent';
+                    ctx.shadowBlur = 0;
+                }
+            });
+
+            const link = document.createElement('a');
+            link.download = `kart-${exportW}x${exportH}-${scale}x.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        resetBtn.addEventListener('click', function() {
+            if (activeTrackLayer) {
+                map.removeLayer(activeTrackLayer);
+                activeTrackLayer = null;
+            }
+            clearPeaks();
+            clearTopAnnotations();
+            clearCustomElements();
+            directionArrows.forEach(a => a.element.remove());
+            directionArrows = [];
+            directionArrowsEnabled = false;
+            const arrowBtn = document.getElementById('toggle-direction-arrows-btn');
+            if (arrowBtn) {
+                arrowBtn.textContent = '➜ Retningspiler: AV';
+                arrowBtn.classList.remove('active');
+            }
+            peaksEnabled = false;
+            peaksBtn.classList.remove('active');
+            toggleBadge.textContent = 'AV';
+            trackTools.classList.remove('visible');
+            helpInfoBox.style.display = 'block';
+            fileInput.value = '';
+            map.setView([START_LAT, START_LON], START_ZOOM);
+        });
+    </script>
+</body>
+</html>
