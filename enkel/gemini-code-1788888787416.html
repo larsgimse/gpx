@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kart med nedlasting</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+        }
+
+        #map-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .download-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background-color: #ffffff;
+            border: 2px solid rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            transition: background-color 0.2s ease;
+        }
+
+        .download-btn:hover {
+            background-color: #f4f4f4;
+        }
+
+        .download-btn:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map-container">
+        <button id="downloadBtn" class="download-btn" onclick="lastNedKartBilde()">Laste ned kart som bilde</button>
+        <div id="map"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- dom-to-image-more for eksport til PNG -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image-more/3.3.1/dom-to-image-more.min.js"></script>
+
+    <script>
+        // 1. Initialiser kartet (sentrert over Tromsø som eksempel)
+        const map = L.map('map').setView([69.6492, 18.9553], 12);
+
+        // 2. Legg til Kartverkets topografiske kart med crossOrigin satt til true
+        // Dette sikrer at elver, konturer og terrengskygger tillates eksport
+        L.tileLayer('https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png', {
+            maxZoom: 18,
+            crossOrigin: true, // Nøkkelen for at bildenedlastingen fungerer
+            attribution: '&copy; <a href="https://www.kartverket.no/">Kartverket</a>'
+        }).addTo(map);
+
+        // 3. Funksjon for å eksportere kartet som PNG-bilde
+        function lastNedKartBilde() {
+            const btn = document.getElementById('downloadBtn');
+            const mapNode = document.getElementById('map');
+
+            // Gi tilbakemelding til brukeren mens bildet rendres
+            btn.disabled = true;
+            btn.innerText = 'Genererer bilde...';
+
+            // domtoimage fanger opp hele kart-DOM-en inkludert fliser, linjer og ikoner
+            domtoimage.toPng(mapNode, {
+                width: mapNode.clientWidth,
+                height: mapNode.clientHeight
+            })
+            .then(function (dataUrl) {
+                // Opprett en skjult lenke for å starte nedlastingen automatisk
+                const link = document.createElement('a');
+                link.download = 'turkart.png';
+                link.href = dataUrl;
+                link.click();
+
+                // Tilbakestill knappen
+                btn.disabled = false;
+                btn.innerText = 'Laste ned kart som bilde';
+            })
+            .catch(function (error) {
+                console.error('Feil ved generering av kartbilde:', error);
+                alert('Kunne ikke laste ned kartet. Sjekk konsollen for detaljer.');
+                btn.disabled = false;
+                btn.innerText = 'Laste ned kart som bilde';
+            });
+        }
+    </script>
+</body>
+</html>
