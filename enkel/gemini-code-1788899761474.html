@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interaktivt Kart</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    .map-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 10px 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      font-family: sans-serif;
+      font-size: 14px;
+    }
+    .map-controls label {
+      display: block;
+      margin-bottom: 5px;
+      cursor: pointer;
+    }
+    .map-controls label:last-child {
+      margin-bottom: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <!-- Kontrollpanel for å skru av/på lag -->
+  <div class="map-controls">
+    <label>
+      <input type="checkbox" id="toggle-elver" checked> Vis elver
+    </label>
+    <label>
+      <input type="checkbox" id="toggle-stier" checked> Vis stier
+    </label>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script>
+    // 1. Initialiser kartet
+    const map = L.map('map').setView([69.6492, 18.9553], 12); // Eksempelkoordinater (Tromsø)
+
+    // 2. Legg til bakgrunnskart (OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    // 3. Lag-holdere for Elver og Stier
+    const elverLayer = L.layerGroup().addTo(map);
+    const stierLayer = L.layerGroup().addTo(map);
+
+    // 4. Hent og vis Elver (GeoJSON)
+    fetch('elver.geojson')
+      .then(response => response.json())
+      .then(data => {
+        L.geoJSON(data, {
+          style: {
+            color: '#0077be',
+            weight: 3,
+            opacity: 0.8
+          }
+        }).addTo(elverLayer);
+      })
+      .catch(err => console.error('Kunne ikke laste elver.geojson:', err));
+
+    // 5. Hent og vis Stier (GeoJSON)
+    fetch('stier.geojson')
+      .then(response => response.json())
+      .then(data => {
+        L.geoJSON(data, {
+          style: {
+            color: '#8B4513', // Brun farge for stier
+            weight: 2,
+            dashArray: '5, 5', // Stiplet linje for stier
+            opacity: 0.8
+          }
+        }).addTo(stierLayer);
+      })
+      .catch(err => console.error('Kunne ikke laste stier.geojson:', err));
+
+    // 6. Lyttere for å skru lag av/på med checkboxes
+    document.getElementById('toggle-elver').addEventListener('change', function(e) {
+      if (e.target.checked) {
+        map.addLayer(elverLayer);
+      } else {
+        map.removeLayer(elverLayer);
+      }
+    });
+
+    document.getElementById('toggle-stier').addEventListener('change', function(e) {
+      if (e.target.checked) {
+        map.addLayer(stierLayer);
+      } else {
+        map.removeLayer(stierLayer);
+      }
+    });
+  </script>
+
+</body>
+</html>
