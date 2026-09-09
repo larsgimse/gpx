@@ -186,6 +186,11 @@
         }
 
         #map { width: 100%; height: 100%; background: var(--bg-color); }
+        #loading-progress { position:absolute; top:70px; left:50%; transform:translateX(-50%); width:min(360px,calc(100% - 40px)); z-index:2000; display:none; background:rgba(20,20,20,.95); border:1px solid #555; border-radius:8px; padding:10px 12px; box-shadow:0 4px 16px rgba(0,0,0,.5); }
+        #loading-progress.visible { display:block; }
+        #loading-progress-label { font-size:.78rem; color:#eee; margin-bottom:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        #loading-progress-track { height:7px; background:#333; border-radius:999px; overflow:hidden; }
+        #loading-progress-bar { height:100%; width:0%; background:#4cae4c; transition:width .25s ease; }
 
         .leaflet-bottom.leaflet-left { bottom: 20px; left: 10px; }
 
@@ -484,18 +489,101 @@
         @media (max-width: 700px) {
             header {
                 top: auto;
-                bottom: 15px;
+                bottom: 10px;
+                left: 6px;
+                right: 6px;
+                width: calc(100% - 12px);
+                padding: 7px;
                 flex-direction: row;
                 flex-wrap: wrap;
-                gap: 8px;
+                gap: 6px;
                 justify-content: center;
-                background: rgba(20, 20, 20, 0.95);
+                align-items: stretch;
+                background: rgba(20, 20, 20, 0.96);
+                max-height: calc(100dvh - 20px);
+                overflow-y: auto;
+                overflow-x: hidden;
             }
-            .nav-buttons { width: 100%; justify-content: center; flex-wrap: wrap; }
-            .btn, .select-style { flex: 1; text-align: center; }
-            #help-info-box { bottom: 120px; right: 10px; left: 10px; width: auto; }
-            .dropdown-content { bottom: calc(100% + 6px); top: auto; }
-            .leaflet-bottom.leaflet-left { bottom: 130px; }
+
+            .nav-buttons {
+                width: 100%;
+                min-width: 0;
+                justify-content: center;
+                align-items: stretch;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+            .track-tools {
+                width: 100%;
+                min-width: 0;
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+            .btn,
+            .select-style {
+                flex: 1 1 auto;
+                min-width: 0;
+                max-width: 100%;
+                text-align: center;
+                padding: 7px 7px;
+                font-size: 0.76rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .btn-toggle {
+                flex: 1 1 calc(50% - 3px);
+            }
+
+            .dropdown-wrapper {
+                flex: 1 1 calc(50% - 3px);
+                min-width: 0;
+            }
+
+            .dropdown-wrapper > .btn {
+                width: 100%;
+            }
+
+            .select-wrapper {
+                flex: 1 1 100%;
+                min-width: 0;
+            }
+
+            .select-wrapper .select-style {
+                width: 100%;
+            }
+
+            .dropdown-content {
+                bottom: calc(100% + 6px);
+                top: auto;
+                left: 0;
+                right: auto;
+                width: min(300px, calc(100vw - 24px));
+                max-width: calc(100vw - 24px);
+            }
+
+            #help-info-box {
+                bottom: 10px;
+                right: 10px;
+                left: 10px;
+                width: auto;
+                max-height: 35dvh;
+                overflow-y: auto;
+            }
+
+            .leaflet-bottom.leaflet-left {
+                bottom: 10px;
+                left: 10px;
+            }
+
+            .leaflet-control-zoom a {
+                width: 34px;
+                height: 34px;
+                line-height: 34px;
+                font-size: 20px;
+            }
         }
     </style>
 </head>
@@ -518,6 +606,7 @@
                     <div class="dropdown-content">
                         <button id="toggle-frame-btn" onclick="toggleFramesGlobal()">🔲 Ramme alle: PÅ</button>
                         <button id="toggle-water-btn" onclick="toggleWaterLayer()">🌊 Elver, bekker & vann: AV</button>
+                        <button id="toggle-paths-btn" onclick="togglePathsLayer()">🥾 Stier & tråkk: AV</button>
                         <button id="toggle-hillshade-btn" onclick="toggleHillshadeLayer()">⛰️ Terrenghøyder (3D): AV</button>
                         <button id="btn-add-custom-title" onclick="addAddon('custom_title')">📝 Legg til egen tittel</button>
                         <button id="btn-add-date" onclick="addAddon('date')">📅 Dato</button>
@@ -557,6 +646,7 @@
 
     <div id="map-container">
         <div id="map"></div>
+        <div id="loading-progress"><div id="loading-progress-label">Laster …</div><div id="loading-progress-track"><div id="loading-progress-bar"></div></div></div>
         <canvas id="peaks-canvas-layer"></canvas>
         <div id="labels-layer"></div>
 
@@ -564,7 +654,7 @@
             <h4><span id="help-title">Funksjonalitet</span> <span id="close-help-btn" title="Lukk">×</span></h4>
             <ul>
                 <li id="help-item-1"><b>Last opp GPX:</b> Kartet zoomer inn til sporet.</li>
-                <li id="help-item-2"><b>Tillegg:</b> Legg til turdata, vannveier, høyder, stigningsprofil og rammer.</li>
+                <li id="help-item-2"><b>Tillegg:</b> Legg til turdata, vannveier, stier, høyder, stigningsprofil og rammer.</li>
                 <li id="help-item-3"><b>Fjelltopper/Landmerker:</b> Slå PÅ/AV for å vise topper og severdigheter. Dra og tilpass via ⚙️.</li>
                 <li id="help-item-4"><b>Bildeeksport:</b> Last ned hele kartvisningen i valgt kvalitet.</li>
             </ul>
@@ -607,6 +697,8 @@
                 frameAllOff: '🔳 Ramme alle: AV',
                 waterOn: '🌊 Elver, bekker & vann: PÅ',
                 waterOff: '🌊 Elver, bekker & vann: AV',
+                pathsOn: '🥾 Stier & tråkk: PÅ',
+                pathsOff: '🥾 Stier & tråkk: AV',
                 hillshadeOn: '⛰️ Terrenghøyder (3D): PÅ',
                 hillshadeOff: '⛰️ Terrenghøyder (3D): AV',
                 customTitle: '📝 Legg til egen tittel',
@@ -631,7 +723,7 @@
                 reset: '🔄 Nullstill',
                 helpTitle: 'Funksjonalitet',
                 help1: '<b>Last opp GPX:</b> Kartet zoomer inn til sporet.',
-                help2: '<b>Tillegg:</b> Legg til turdata, vannveier, høyder, stigningsprofil og rammer.',
+                help2: '<b>Tillegg:</b> Legg til turdata, vannveier, stier, høyder, stigningsprofil og rammer.',
                 help3: '<b>Fjelltopper/Landmerker:</b> Slå PÅ/AV for å vise topper og severdigheter. Dra og tilpass via ⚙️.',
                 help4: '<b>Bildeeksport:</b> Last ned hele kartvisningen i valgt kvalitet.',
                 modalTitle: 'Velg bildekvalitet',
@@ -673,6 +765,8 @@
                 frameAllOff: '🔳 Frame all: OFF',
                 waterOn: '🌊 Water features: ON',
                 waterOff: '🌊 Water features: OFF',
+                pathsOn: '🥾 Trails & paths: ON',
+                pathsOff: '🥾 Trails & paths: OFF',
                 hillshadeOn: '⛰️ Terrain relief (3D): ON',
                 hillshadeOff: '⛰️ Terrain relief (3D): OFF',
                 customTitle: '📝 Add custom title',
@@ -697,7 +791,7 @@
                 reset: '🔄 Reset',
                 helpTitle: 'Features',
                 help1: '<b>Upload GPX:</b> Map zooms to the track.',
-                help2: '<b>Add-ons:</b> Add trip data, water features, terrain heights, elevation profile, and toggle frames.',
+                help2: '<b>Add-ons:</b> Add trip data, water features, trails, terrain heights, elevation profile, and toggle frames.',
                 help3: '<b>Peaks/Landmarks:</b> Toggle ON/OFF to show peaks and points of interest. Drag and edit via ⚙️.',
                 help4: '<b>Image Export:</b> Download current map view in chosen quality.',
                 modalTitle: 'Select Image Quality',
@@ -713,7 +807,7 @@
                 maxText: 'MAX',
                 profileLabel: 'ELEVATION PROFILE',
                 frameSingleOn: '🔲 Frame: ON',
-                frameSingleOff: '🔳 Frame: OFF',
+                frameSingleOff: 'm Frame: OFF',
                 frameTitle: 'Frame',
                 lineStyleTitle: 'Line style',
                 lblDate: 'DATE:',
@@ -747,6 +841,7 @@
             document.getElementById('addon-toggle-btn').textContent = t.addons;
             document.getElementById('toggle-frame-btn').textContent = globalFramesState ? t.frameAllOn : t.frameAllOff;
             document.getElementById('toggle-water-btn').textContent = waterLayerEnabled ? t.waterOn : t.waterOff;
+            document.getElementById('toggle-paths-btn').textContent = pathsLayerEnabled ? t.pathsOn : t.pathsOff;
             document.getElementById('toggle-hillshade-btn').textContent = hillshadeEnabled ? t.hillshadeOn : t.hillshadeOff;
 
             document.getElementById('btn-add-custom-title').textContent = t.customTitle;
@@ -809,6 +904,9 @@
         const map = L.map('map', {
             zoomControl: false,
             maxZoom: 18,
+            zoomDelta: 0.5,
+            zoomSnap: 0.5,
+            wheelPxPerZoomLevel: 160,
             renderer: minRenderer
         }).setView([START_LAT, START_LON], START_ZOOM);
 
@@ -825,9 +923,13 @@
         let gpxAnalysis = {};
         let globalFramesState = true;
 
-        // Vann/Elver og Hillshade lag
+        // Vann/Elver, Stier og Hillshade lag
         let waterLayerEnabled = false;
         let waterGeoJsonLayer = null;
+        let waterGeoJsonData = null;
+        let pathsLayerEnabled = false;
+        let pathsGeoJsonLayer = null;
+        let pathsGeoJsonData = null;
         let hillshadeEnabled = false;
         let hillshadeTileLayer = null;
 
@@ -893,118 +995,83 @@
             });
         }
 
-        async function toggleWaterLayer() {
-            waterLayerEnabled = !waterLayerEnabled;
-            const btn = document.getElementById('toggle-water-btn');
-            const t = i18n[currentLang];
-            btn.textContent = waterLayerEnabled ? t.waterOn : t.waterOff;
-            btn.classList.toggle('active-addon', waterLayerEnabled);
+        let osmRefreshTimer = null, waterRequestId = 0, pathsRequestId = 0;
+        let waterLastBounds = null, pathsLastBounds = null;
+        function setProgress(label, percent) { const box=document.getElementById('loading-progress'), bar=document.getElementById('loading-progress-bar'), text=document.getElementById('loading-progress-label'); text.textContent=label; bar.style.width=`${percent}%`; box.classList.add('visible'); }
+        function hideProgress(delay=350) { setTimeout(()=>document.getElementById('loading-progress').classList.remove('visible'),delay); }
+        function boundsKey() { const b=map.getBounds(); return [b.getSouth().toFixed(3),b.getWest().toFixed(3),b.getNorth().toFixed(3),b.getEast().toFixed(3),map.getZoom().toFixed(1)].join(','); }
+        function getDataBounds() { if(map.getZoom()<10) return null; const b=map.getBounds(); return {minLat:b.getSouth(),maxLat:b.getNorth(),minLon:b.getWest(),maxLon:b.getEast()}; }
+        const OVERPASS_ENDPOINTS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+        async function overpassFetch(query,onProgress=()=>{}) { let lastError=null; for(let i=0;i<OVERPASS_ENDPOINTS.length;i++){ try { onProgress(25+i*25); const c=new AbortController(), timer=setTimeout(()=>c.abort(),20000); const res=await fetch(`${OVERPASS_ENDPOINTS[i]}?data=${encodeURIComponent(query)}`,{signal:c.signal}); clearTimeout(timer); if(res.ok){onProgress(75); return await res.json();} lastError=new Error(`Overpass HTTP ${res.status}`);}catch(e){lastError=e;} } throw lastError||new Error('Ingen Overpass-server svarte'); }
+        function overpassElementsToGeoJSON(elements){const features=[]; for(const el of elements||[]){if(el.type!=='way'||!Array.isArray(el.geometry)||el.geometry.length<2)continue;const coords=el.geometry.filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon)).map(p=>[p.lon,p.lat]);if(coords.length<2)continue;const closed=coords.length>3&&coords[0][0]===coords.at(-1)[0]&&coords[0][1]===coords.at(-1)[1];features.push({type:'Feature',properties:el.tags||{},geometry:{type:closed?'Polygon':'LineString',coordinates:closed?[coords]:coords}});}return {type:'FeatureCollection',features};}
+        async function toggleWaterLayer(){waterLayerEnabled=!waterLayerEnabled; const btn=document.getElementById('toggle-water-btn'),t=i18n[currentLang];btn.textContent=waterLayerEnabled?t.waterOn:t.waterOff;btn.classList.toggle('active-addon',waterLayerEnabled); if(waterLayerEnabled) await fetchWaterFeatures(true); else clearWater();}
+        function clearWater(){waterRequestId++;waterGeoJsonData=null;waterLastBounds=null;if(waterGeoJsonLayer){map.removeLayer(waterGeoJsonLayer);waterGeoJsonLayer=null;}hideProgress(0);}
+        async function fetchWaterFeatures(force=false){if(!waterLayerEnabled)return; const key=boundsKey();if(!force&&key===waterLastBounds)return;const bounds=getDataBounds();if(!bounds){clearWater();return;}const id=++waterRequestId;setProgress('Laster elver, bekker og vann …',10);if(waterGeoJsonLayer){map.removeLayer(waterGeoJsonLayer);waterGeoJsonLayer=null;}const {minLat,maxLat,minLon,maxLon}=bounds;const query=`[out:json][timeout:20];(way["waterway"~"river|stream|canal|drain"](${minLat},${minLon},${maxLat},${maxLon});way["natural"="water"](${minLat},${minLon},${maxLat},${maxLon}););out geom qt;`;try{const data=await overpassFetch(query,p=>setProgress('Laster elver, bekker og vann …',p));if(id!==waterRequestId||!waterLayerEnabled)return;waterGeoJsonData=overpassElementsToGeoJSON(data.elements);waterGeoJsonLayer=L.geoJSON(waterGeoJsonData,{style:f=>{const line=f.geometry.type.includes('Line');return {color:line?'#4aa3df':'#3388ff',weight:line?2.2:1,opacity:line?.9:.65,fillColor:'#3388ff',fillOpacity:.22};}}).addTo(map);waterLastBounds=key;setProgress(`Elver og vann lastet (${waterGeoJsonData.features.length})`,100);}catch(e){if(id===waterRequestId)setProgress('Kunne ikke laste elver og vann',100);}finally{hideProgress();}}
+        async function togglePathsLayer(){pathsLayerEnabled=!pathsLayerEnabled;const btn=document.getElementById('toggle-paths-btn'),t=i18n[currentLang];btn.textContent=pathsLayerEnabled?t.pathsOn:t.pathsOff;btn.classList.toggle('active-addon',pathsLayerEnabled);if(pathsLayerEnabled)await fetchPathsFeatures(true);else clearPaths();}
+        function clearPaths(){pathsRequestId++;pathsGeoJsonData=null;pathsLastBounds=null;if(pathsGeoJsonLayer){map.removeLayer(pathsGeoJsonLayer);pathsGeoJsonLayer=null;}hideProgress(0);}
+        async function fetchPathsFeatures(force=false){if(!pathsLayerEnabled)return;const key=boundsKey();if(!force&&key===pathsLastBounds)return;const bounds=getDataBounds();if(!bounds){clearPaths();return;}const id=++pathsRequestId;setProgress('Laster stier og tråkk …',10);if(pathsGeoJsonLayer){map.removeLayer(pathsGeoJsonLayer);pathsGeoJsonLayer=null;}const {minLat,maxLat,minLon,maxLon}=bounds;const query=`[out:json][timeout:20];(way["highway"~"path|footway|bridleway|track|steps"](${minLat},${minLon},${maxLat},${maxLon});way["route"="hiking"](${minLat},${minLon},${maxLat},${maxLon}););out geom qt;`;try{const data=await overpassFetch(query,p=>setProgress('Laster stier og tråkk …',p));if(id!==pathsRequestId||!pathsLayerEnabled)return;pathsGeoJsonData=overpassElementsToGeoJSON(data.elements);pathsGeoJsonLayer=L.geoJSON(pathsGeoJsonData,{style:f=>{const h=f.properties?.highway||'';return {color:h==='track'?'#f0a24a':'#f6d365',weight:h==='track'?2:1.7,opacity:.9,dashArray:h==='track'?null:'5, 5',lineCap:'round',lineJoin:'round'};}}).addTo(map);pathsLastBounds=key;setProgress(`Stier og tråkk lastet (${pathsGeoJsonData.features.length})`,100);}catch(e){if(id===pathsRequestId)setProgress('Kunne ikke laste stier og tråkk',100);}finally{hideProgress();}}
+        map.on('moveend',()=>{if(osmRefreshTimer)clearTimeout(osmRefreshTimer);osmRefreshTimer=setTimeout(()=>{if(waterLayerEnabled)fetchWaterFeatures();if(pathsLayerEnabled)fetchPathsFeatures();},350);});
+        function toggleHillshadeLayer(){hillshadeEnabled=!hillshadeEnabled;const btn=document.getElementById('toggle-hillshade-btn'),t=i18n[currentLang];btn.textContent=hillshadeEnabled?t.hillshadeOn:t.hillshadeOff;btn.classList.toggle('active-addon',hillshadeEnabled);if(hillshadeEnabled){setProgress('Laster terrenghøyder …',20);if(!hillshadeTileLayer){hillshadeTileLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.3,crossOrigin:true});hillshadeTileLayer.once('load',()=>{setProgress('Terrenghøyder lastet',100);hideProgress();});}hillshadeTileLayer.addTo(map);}else if(hillshadeTileLayer)map.removeLayer(hillshadeTileLayer);}
 
-            if (waterLayerEnabled) {
-                await fetchWaterFeatures();
-            } else {
-                if (waterGeoJsonLayer) {
-                    map.removeLayer(waterGeoJsonLayer);
-                    waterGeoJsonLayer = null;
+        function drawGeoJsonToCanvas(ctx, geojson, styleOptions) {
+            if (!geojson || !geojson.features) return;
+
+            geojson.features.forEach(feature => {
+                const geom = feature.geometry;
+                if (!geom) return;
+
+                const isLine = geom.type === 'LineString' || geom.type === 'MultiLineString';
+                ctx.save();
+                ctx.beginPath();
+
+                if (styleOptions.dashArray) {
+                    ctx.setLineDash(styleOptions.dashArray);
                 }
-            }
-        }
 
-        async function fetchWaterFeatures() {
-            if (waterGeoJsonLayer) {
-                map.removeLayer(waterGeoJsonLayer);
-                waterGeoJsonLayer = null;
-            }
-
-            const bounds = map.getBounds();
-            const minLat = bounds.getSouth();
-            const maxLat = bounds.getNorth();
-            const minLon = bounds.getWest();
-            const maxLon = bounds.getEast();
-
-            const query = `[out:json][timeout:25];
-            (
-              way["waterway"~"river|stream|canal"](${minLat},${minLon},${maxLat},${maxLon});
-              way["natural"="water"](${minLat},${minLon},${maxLat},${maxLon});
-              relation["natural"="water"](${minLat},${minLon},${maxLat},${maxLon});
-            );
-            out body;
-            >;
-            out skel qt;`;
-
-            try {
-                const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    const geojson = osmtogeojson(data);
-
-                    waterGeoJsonLayer = L.geoJSON(geojson, {
-                        style: function(feature) {
-                            const isLine = feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString';
-                            return {
-                                color: '#4a90e2',
-                                weight: isLine ? 1.5 : 0.8,
-                                opacity: 0.7,
-                                fillColor: '#3388ff',
-                                fillOpacity: 0.25
-                            };
-                        }
-                    }).addTo(map);
-                }
-            } catch (e) {
-                console.error("Kunne ikke hente elver/vann:", e);
-            }
-        }
-
-        function toggleHillshadeLayer() {
-            hillshadeEnabled = !hillshadeEnabled;
-            const btn = document.getElementById('toggle-hillshade-btn');
-            const t = i18n[currentLang];
-            btn.textContent = hillshadeEnabled ? t.hillshadeOn : t.hillshadeOff;
-            btn.classList.toggle('active-addon', hillshadeEnabled);
-
-            if (hillshadeEnabled) {
-                if (!hillshadeTileLayer) {
-                    hillshadeTileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
-                        maxZoom: 19,
-                        opacity: 0.3,
-                        crossOrigin: true
+                const drawLineString = (coords) => {
+                    coords.forEach((coord, i) => {
+                        const pt = map.latLngToContainerPoint([coord[1], coord[0]]);
+                        if (i === 0) ctx.moveTo(pt.x, pt.y);
+                        else ctx.lineTo(pt.x, pt.y);
                     });
-                }
-                hillshadeTileLayer.addTo(map);
-            } else {
-                if (hillshadeTileLayer) {
-                    map.removeLayer(hillshadeTileLayer);
-                }
-            }
-        }
+                };
 
-        // Minimalistisk OSM til GeoJSON-konvertering
-        function osmtogeojson(data) {
-            const nodes = {};
-            data.elements.forEach(el => {
-                if (el.type === 'node') nodes[el.id] = [el.lon, el.lat];
-            });
-
-            const features = [];
-            data.elements.forEach(el => {
-                if (el.type === 'way' && el.nodes) {
-                    const coords = el.nodes.map(nid => nodes[nid]).filter(c => c !== undefined);
-                    if (coords.length > 1) {
-                        const isClosed = el.nodes[0] === el.nodes[el.nodes.length - 1];
-                        features.push({
-                            type: 'Feature',
-                            properties: el.tags || {},
-                            geometry: {
-                                type: isClosed ? 'Polygon' : 'LineString',
-                                coordinates: isClosed ? [coords] : coords
-                            }
+                const drawPolygon = (rings) => {
+                    rings.forEach(ring => {
+                        ring.forEach((coord, i) => {
+                            const pt = map.latLngToContainerPoint([coord[1], coord[0]]);
+                            if (i === 0) ctx.moveTo(pt.x, pt.y);
+                            else ctx.lineTo(pt.x, pt.y);
                         });
-                    }
-                }
-            });
+                        ctx.closePath();
+                    });
+                };
 
-            return { type: 'FeatureCollection', features };
+                if (geom.type === 'LineString') {
+                    drawLineString(geom.coordinates);
+                } else if (geom.type === 'MultiLineString') {
+                    geom.coordinates.forEach(drawLineString);
+                } else if (geom.type === 'Polygon') {
+                    drawPolygon(geom.coordinates);
+                } else if (geom.type === 'MultiPolygon') {
+                    geom.coordinates.forEach(drawPolygon);
+                }
+
+                if (!isLine && styleOptions.fillColor) {
+                    ctx.fillStyle = styleOptions.fillColor;
+                    ctx.globalAlpha = styleOptions.fillOpacity !== undefined ? styleOptions.fillOpacity : 0.25;
+                    ctx.fill();
+                }
+
+                if (styleOptions.color) {
+                    ctx.strokeStyle = styleOptions.color;
+                    ctx.lineWidth = isLine ? (styleOptions.weightLine || styleOptions.weight || 1.5) : (styleOptions.weightPoly || styleOptions.weight || 0.8);
+                    ctx.globalAlpha = styleOptions.opacity !== undefined ? styleOptions.opacity : 0.7;
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            });
         }
 
         function setupElementControls(el, peakDataObj = null) {
@@ -1181,7 +1248,10 @@
                     analyzeGpxXml(evt.target.result);
                     map.fitBounds(trackBounds, { padding: [80, 80] });
 
-                    if (waterLayerEnabled) fetchWaterFeatures();
+                    setTimeout(() => {
+                        if (waterLayerEnabled) fetchWaterFeatures();
+                        if (pathsLayerEnabled) fetchPathsFeatures();
+                    }, 400);
                 });
 
                 track.addTo(map);
@@ -2252,6 +2322,26 @@
                 }
             }
 
+            if (waterLayerEnabled && waterGeoJsonData) {
+                drawGeoJsonToCanvas(ctx, waterGeoJsonData, {
+                    color: '#4a90e2',
+                    weightLine: 1.5,
+                    weightPoly: 0.8,
+                    opacity: 0.7,
+                    fillColor: '#3388ff',
+                    fillOpacity: 0.25
+                });
+            }
+
+            if (pathsLayerEnabled && pathsGeoJsonData) {
+                drawGeoJsonToCanvas(ctx, pathsGeoJsonData, {
+                    color: '#e67e22',
+                    weight: 1.2,
+                    opacity: 0.7,
+                    dashArray: [3, 4]
+                });
+            }
+
             if (gpxAnalysis?.pts?.length > 0) {
                 ctx.beginPath();
                 ctx.strokeStyle = 'rgba(255,255,255,0.9)';
@@ -2342,14 +2432,21 @@
                 map.removeLayer(activeTrackLayer);
                 activeTrackLayer = null;
             }
+            waterGeoJsonData = null;
             if (waterGeoJsonLayer) {
                 map.removeLayer(waterGeoJsonLayer);
                 waterGeoJsonLayer = null;
+            }
+            pathsGeoJsonData = null;
+            if (pathsGeoJsonLayer) {
+                map.removeLayer(pathsGeoJsonLayer);
+                pathsGeoJsonLayer = null;
             }
             if (hillshadeTileLayer) {
                 map.removeLayer(hillshadeTileLayer);
             }
             waterLayerEnabled = false;
+            pathsLayerEnabled = false;
             hillshadeEnabled = false;
 
             clearPeaks();
@@ -2372,6 +2469,18 @@
             landmarksBtn.classList.remove('active');
             landmarksBadge.textContent = i18n[currentLang].statusOff;
 
+            // Tilbakestill alle GPX-relaterte lag og valg til startsituasjonen.
+            clearWater(); clearPaths();
+            waterLayerEnabled = false; pathsLayerEnabled = false;
+            document.getElementById('toggle-water-btn').classList.remove('active-addon');
+            document.getElementById('toggle-paths-btn').classList.remove('active-addon');
+            document.getElementById('toggle-water-btn').textContent = i18n[currentLang].waterOff;
+            document.getElementById('toggle-paths-btn').textContent = i18n[currentLang].pathsOff;
+            if (hillshadeTileLayer) map.removeLayer(hillshadeTileLayer);
+            hillshadeEnabled = false;
+            document.getElementById('toggle-hillshade-btn').classList.remove('active-addon');
+            document.getElementById('toggle-hillshade-btn').textContent = i18n[currentLang].hillshadeOff;
+            hideProgress(0);
             trackTools.classList.remove('visible');
             helpInfoBox.style.display = 'block';
             fileInput.value = '';
