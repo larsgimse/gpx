@@ -43,7 +43,7 @@
             min-height: 50px;
         }
         
-        .nav-buttons { display: flex; gap: 8px; align-items: center; z-index: 1001; }
+        .nav-buttons { display: flex; gap: 8px; align-items: center; }
         
         .btn {
             padding: 8px 12px;
@@ -164,6 +164,28 @@
         .dropdown-content button.active-addon {
             background-color: #2a3b2a;
             color: #4cae4c;
+        }
+
+        /* Mens en meny er åpen ligger hele headeren (og dermed menyen) over kartkontroller og hjelpeboks */
+        body.dropdown-open header {
+            z-index: 2600;
+        }
+
+        /* Tittelrad med lukk-knapp: brukes kun i mobilens bunnark */
+        .dropdown-title {
+            display: none;
+        }
+
+        /* Mellomstore skjermer: la menyene bryte til neste linje i stedet for å presses sammen */
+        @media (min-width: 701px) and (max-width: 1240px) {
+            header {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .nav-buttons,
+            .track-tools {
+                flex-wrap: wrap;
+            }
         }
 
         .track-tools {
@@ -486,6 +508,37 @@
 
         .modal-content h3 { font-size: 1rem; color: #fff; }
 
+        /* Mobil: rask visning/skjuling av hele brukergrensesnittet */
+        #mobile-ui-toggle {
+            display: none;
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 3000;
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            border-radius: 50%;
+            background: rgba(20,20,20,.92);
+            color: #fff;
+            border: 1px solid #555;
+            box-shadow: 0 3px 12px rgba(0,0,0,.55);
+            font-size: 20px;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+        }
+
+        body.mobile-ui-hidden header,
+        body.mobile-ui-hidden #help-info-box,
+        body.mobile-ui-hidden .leaflet-control-container {
+            display: none !important;
+        }
+
+        body.mobile-ui-hidden #mobile-ui-toggle {
+            display: flex !important;
+        }
+
         @media (max-width: 700px) {
             header {
                 top: auto;
@@ -503,6 +556,10 @@
                 max-height: calc(100dvh - 20px);
                 overflow-y: auto;
                 overflow-x: hidden;
+                /* backdrop-filter gjør headeren til «containing block» for position: fixed,
+                   noe som fikk tilleggsmenyen til å ligge inni headerens egen scrolling. */
+                backdrop-filter: none;
+                -webkit-backdrop-filter: none;
             }
 
             .nav-buttons {
@@ -555,13 +612,87 @@
                 width: 100%;
             }
 
+            /* Menyene åpnes som et bunnark over headeren med egen, uavhengig scrolling */
             .dropdown-content {
-                bottom: calc(100% + 6px);
+                position: fixed;
                 top: auto;
-                left: 0;
-                right: auto;
-                width: min(300px, calc(100vw - 24px));
-                max-width: calc(100vw - 24px);
+                bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+                left: 6px;
+                right: 6px;
+                width: auto;
+                min-width: 0;
+                max-width: none;
+                max-height: 62vh;
+                max-height: 62dvh;
+                padding: 0 8px 8px;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
+                touch-action: pan-y;
+                z-index: 2500;
+            }
+
+            .dropdown-wrapper.open .dropdown-content {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 6px;
+                align-content: start;
+            }
+
+            .dropdown-wrapper.open .dropdown-content.two-col {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .dropdown-title {
+                display: flex;
+                grid-column: 1 / -1;
+                align-items: center;
+                justify-content: space-between;
+                position: sticky;
+                top: 0;
+                z-index: 2;
+                background: #1e1e1e;
+                padding: 10px 2px 8px;
+                font-size: 0.9rem;
+                font-weight: 600;
+                color: #fff;
+                border-bottom: 1px solid #333;
+            }
+
+            .dropdown-wrapper .dropdown-content button {
+                display: flex;
+                align-items: center;
+                min-height: 46px;
+                padding: 8px 10px;
+                font-size: 0.8rem;
+                line-height: 1.25;
+                white-space: normal;
+                background: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                border-radius: 8px;
+            }
+
+            .dropdown-wrapper .dropdown-content button.active-addon {
+                background: #2a3b2a;
+                color: #4cae4c;
+                border-color: #4cae4c;
+            }
+
+            .dropdown-wrapper .dropdown-content button.dropdown-close {
+                width: 38px;
+                min-height: 38px;
+                padding: 0;
+                justify-content: center;
+                font-size: 1.4rem;
+                background: #333;
+            }
+
+            #mobile-ui-toggle {
+                display: flex;
+            }
+
+            body.mobile-ui-hidden .leaflet-control-container {
+                display: none !important;
             }
 
             #help-info-box {
@@ -589,6 +720,8 @@
 </head>
 <body>
 
+    <button id="mobile-ui-toggle" type="button" aria-label="Skjul menyer" title="Skjul menyer">☰</button>
+
     <header>
         <div class="nav-buttons">
             <button id="btn-upload-trigger" class="btn btn-upload">📁 Last opp GPX</button>
@@ -601,13 +734,28 @@
                     📍 Landmerker <span id="landmarks-status-badge" class="badge">AV</span>
                 </button>
                 
-                <div class="dropdown-wrapper" id="addon-dropdown">
-                    <button class="btn" id="addon-toggle-btn">➕ Tillegg ▾</button>
+                <div class="dropdown-wrapper" id="layers-dropdown">
+                    <button class="btn" id="layers-toggle-btn" type="button">🗺️ Kartvisning ▾</button>
                     <div class="dropdown-content">
+                        <div class="dropdown-title">
+                            <span id="layers-title">🗺️ Kartvisning</span>
+                            <button type="button" class="dropdown-close" aria-label="Lukk">×</button>
+                        </div>
                         <button id="toggle-frame-btn" onclick="toggleFramesGlobal()">🔲 Ramme alle: PÅ</button>
                         <button id="toggle-water-btn" onclick="toggleWaterLayer()">🌊 Elver, bekker & vann: AV</button>
                         <button id="toggle-paths-btn" onclick="togglePathsLayer()">🥾 Stier & tråkk: AV</button>
                         <button id="toggle-hillshade-btn" onclick="toggleHillshadeLayer()">⛰️ Terrenghøyder (3D): AV</button>
+                        <button id="toggle-direction-arrows-btn" onclick="toggleDirectionArrows()">➜ Retningspiler: AV</button>
+                    </div>
+                </div>
+
+                <div class="dropdown-wrapper" id="data-dropdown">
+                    <button class="btn" id="data-toggle-btn" type="button">➕ Turdata ▾</button>
+                    <div class="dropdown-content two-col">
+                        <div class="dropdown-title">
+                            <span id="data-title">➕ Turdata</span>
+                            <button type="button" class="dropdown-close" aria-label="Lukk">×</button>
+                        </div>
                         <button id="btn-add-custom-title" onclick="addAddon('custom_title')">📝 Legg til egen tittel</button>
                         <button id="btn-add-date" onclick="addAddon('date')">📅 Dato</button>
                         <button id="btn-add-dist-total" onclick="addAddon('dist_total')">📏 Lengde totalt</button>
@@ -620,7 +768,6 @@
                         <button id="btn-add-end-time" onclick="addAddon('end_time')">🏁 Slutttid</button>
                         <button id="btn-add-gps-start" onclick="addAddon('gps_start')">📍 GPS startpunkt</button>
                         <button id="btn-add-profile" onclick="addAddon('profile')">📊 Stigningsprofil</button>
-                        <button id="toggle-direction-arrows-btn" onclick="toggleDirectionArrows()">➜ Retningspiler: AV</button>
                     </div>
                 </div>
 
@@ -654,7 +801,7 @@
             <h4><span id="help-title">Funksjonalitet</span> <span id="close-help-btn" title="Lukk">×</span></h4>
             <ul>
                 <li id="help-item-1"><b>Last opp GPX:</b> Kartet zoomer inn til sporet.</li>
-                <li id="help-item-2"><b>Tillegg:</b> Legg til turdata, vannveier, stier, høyder, stigningsprofil og rammer.</li>
+                <li id="help-item-2"><b>Tillegg:</b> «Kartvisning» styrer vannveier, stier, terrenghøyder, retningspiler og rammer. «Turdata» legger til turdata og stigningsprofil.</li>
                 <li id="help-item-3"><b>Fjelltopper/Landmerker:</b> Slå PÅ/AV for å vise topper og severdigheter. Dra og tilpass via ⚙️.</li>
                 <li id="help-item-4"><b>Bildeeksport:</b> Last ned hele kartvisningen i valgt kvalitet.</li>
             </ul>
@@ -692,7 +839,11 @@
                 landmarks: '📍 Landmerker',
                 statusOn: 'PÅ',
                 statusOff: 'AV',
-                addons: '➕ Tillegg ▾',
+                addonsLayers: '🗺️ Kartvisning ▾',
+                addonsData: '➕ Turdata ▾',
+                layersTitle: '🗺️ Kartvisning',
+                dataTitle: '➕ Turdata',
+                closeMenu: 'Lukk',
                 frameAllOn: '🔲 Ramme alle: PÅ',
                 frameAllOff: '🔳 Ramme alle: AV',
                 waterOn: '🌊 Elver, bekker & vann: PÅ',
@@ -723,7 +874,7 @@
                 reset: '🔄 Nullstill',
                 helpTitle: 'Funksjonalitet',
                 help1: '<b>Last opp GPX:</b> Kartet zoomer inn til sporet.',
-                help2: '<b>Tillegg:</b> Legg til turdata, vannveier, stier, høyder, stigningsprofil og rammer.',
+                help2: '<b>Tillegg:</b> «Kartvisning» styrer vannveier, stier, terrenghøyder, retningspiler og rammer. «Turdata» legger til turdata og stigningsprofil.',
                 help3: '<b>Fjelltopper/Landmerker:</b> Slå PÅ/AV for å vise topper og severdigheter. Dra og tilpass via ⚙️.',
                 help4: '<b>Bildeeksport:</b> Last ned hele kartvisningen i valgt kvalitet.',
                 modalTitle: 'Velg bildekvalitet',
@@ -760,7 +911,11 @@
                 landmarks: '📍 Landmarks',
                 statusOn: 'ON',
                 statusOff: 'OFF',
-                addons: '➕ Add-ons ▾',
+                addonsLayers: '🗺️ Map display ▾',
+                addonsData: '➕ Trip data ▾',
+                layersTitle: '🗺️ Map display',
+                dataTitle: '➕ Trip data',
+                closeMenu: 'Close',
                 frameAllOn: '🔲 Frame all: ON',
                 frameAllOff: '🔳 Frame all: OFF',
                 waterOn: '🌊 Water features: ON',
@@ -791,7 +946,7 @@
                 reset: '🔄 Reset',
                 helpTitle: 'Features',
                 help1: '<b>Upload GPX:</b> Map zooms to the track.',
-                help2: '<b>Add-ons:</b> Add trip data, water features, trails, terrain heights, elevation profile, and toggle frames.',
+                help2: '<b>Add-ons:</b> “Map display” controls water features, trails, terrain relief, direction arrows and frames. “Trip data” adds trip stats and the elevation profile.',
                 help3: '<b>Peaks/Landmarks:</b> Toggle ON/OFF to show peaks and points of interest. Drag and edit via ⚙️.',
                 help4: '<b>Image Export:</b> Download current map view in chosen quality.',
                 modalTitle: 'Select Image Quality',
@@ -807,7 +962,7 @@
                 maxText: 'MAX',
                 profileLabel: 'ELEVATION PROFILE',
                 frameSingleOn: '🔲 Frame: ON',
-                frameSingleOff: 'm Frame: OFF',
+                frameSingleOff: '🔳 Frame: OFF',
                 frameTitle: 'Frame',
                 lineStyleTitle: 'Line style',
                 lblDate: 'DATE:',
@@ -828,6 +983,14 @@
 
             document.title = t.pageTitle;
             document.getElementById('btn-lang-toggle').textContent = t.langBtn;
+            if (mobileUiToggle) {
+                const hidden = document.body.classList.contains('mobile-ui-hidden');
+                mobileUiToggle.textContent = hidden ? '☰' : '×';
+                mobileUiToggle.title = hidden ? (lang === 'no' ? 'Vis menyer' : 'Show menus')
+                                               : (lang === 'no' ? 'Skjul menyer' : 'Hide menus');
+                mobileUiToggle.setAttribute('aria-label', hidden ? (lang === 'no' ? 'Vis menyer' : 'Show menus')
+                                                                   : (lang === 'no' ? 'Skjul menyer' : 'Hide menus'));
+            }
             document.getElementById('btn-upload-trigger').textContent = t.uploadGpx;
             
             const peakBadgeText = peaksEnabled ? t.statusOn : t.statusOff;
@@ -838,7 +1001,11 @@
             document.getElementById('btn-toggle-landmarks').childNodes[0].nodeValue = `${t.landmarks} `;
             landmarksBadge.textContent = landmarksBadgeText;
 
-            document.getElementById('addon-toggle-btn').textContent = t.addons;
+            document.getElementById('layers-toggle-btn').textContent = t.addonsLayers;
+            document.getElementById('data-toggle-btn').textContent = t.addonsData;
+            document.getElementById('layers-title').textContent = t.layersTitle;
+            document.getElementById('data-title').textContent = t.dataTitle;
+            document.querySelectorAll('.dropdown-close').forEach(b => b.setAttribute('aria-label', t.closeMenu));
             document.getElementById('toggle-frame-btn').textContent = globalFramesState ? t.frameAllOn : t.frameAllOff;
             document.getElementById('toggle-water-btn').textContent = waterLayerEnabled ? t.waterOn : t.waterOff;
             document.getElementById('toggle-paths-btn').textContent = pathsLayerEnabled ? t.pathsOn : t.pathsOff;
@@ -881,6 +1048,8 @@
             document.getElementById('modal-cancel').textContent = t.cancel;
             document.getElementById('modal-confirm').textContent = t.saveImage;
 
+            updateDynamicElementLabels();
+
             document.querySelectorAll('.profile-element').forEach(el => {
                 const label = el.querySelector('.draggable-label');
                 if (label) label.textContent = t.profileLabel;
@@ -889,9 +1058,62 @@
             });
         }
 
+        // Oppdaterer også menyer som allerede er opprettet inne på kartet.
+        function updateDynamicElementLabels() {
+            const t = i18n[currentLang];
+
+            document.querySelectorAll('.draggable-element').forEach(el => {
+                const menu = el.querySelector('.elem-settings-menu');
+                if (!menu) return;
+
+                const sectionTitles = menu.querySelectorAll('.menu-section-title');
+                if (sectionTitles[0]) sectionTitles[0].textContent = t.frameTitle;
+                if (sectionTitles[1]) sectionTitles[1].textContent = t.lineStyleTitle;
+
+                const frameBtn = menu.querySelector('.menu-btn');
+                if (frameBtn) {
+                    frameBtn.textContent = el.classList.contains('no-frame')
+                        ? t.frameSingleOn
+                        : t.frameSingleOff;
+                }
+
+                const styleButtons = menu.querySelectorAll('.line-style-btn');
+                const labels = [t.corner, t.arc, t.straight];
+                styleButtons.forEach((btn, idx) => {
+                    if (labels[idx] !== undefined) btn.textContent = labels[idx];
+                });
+            });
+        }
+
         document.getElementById('btn-lang-toggle').addEventListener('click', () => {
             setLanguage(currentLang === 'no' ? 'en' : 'no');
+            updateDynamicElementLabels();
         });
+
+        // Mobil: én knapp for å skjule/vis hele brukergrensesnittet.
+        const mobileUiToggle = document.getElementById('mobile-ui-toggle');
+
+        function setMobileUiHidden(hidden) {
+            document.body.classList.toggle('mobile-ui-hidden', hidden);
+            mobileUiToggle.textContent = hidden ? '☰' : '×';
+            mobileUiToggle.title = hidden
+                ? (currentLang === 'no' ? 'Vis menyer' : 'Show menus')
+                : (currentLang === 'no' ? 'Skjul menyer' : 'Hide menus');
+            mobileUiToggle.setAttribute(
+                'aria-label',
+                hidden
+                    ? (currentLang === 'no' ? 'Vis menyer' : 'Show menus')
+                    : (currentLang === 'no' ? 'Skjul menyer' : 'Hide menus')
+            );
+        }
+
+        mobileUiToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setMobileUiHidden(!document.body.classList.contains('mobile-ui-hidden'));
+        });
+
+        // Ikke skjul UI automatisk – brukeren bestemmer selv.
+        setMobileUiHidden(false);
 
         const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         const minRenderer = L.canvas({ tolerance: isTouchDevice ? 22 : 3 });
@@ -951,8 +1173,7 @@
         const helpInfoBox = document.getElementById('help-info-box');
         const closeHelpBtn = document.getElementById('close-help-btn');
 
-        const addonDropdown = document.getElementById('addon-dropdown');
-        const addonToggleBtn = document.getElementById('addon-toggle-btn');
+        const dropdownWrappers = Array.from(document.querySelectorAll('.dropdown-wrapper'));
 
         const peaksCanvas = document.getElementById('peaks-canvas-layer');
         const peaksCtx = peaksCanvas.getContext('2d');
@@ -968,15 +1189,62 @@
         let directionArrowsEnabled = false;
         let directionArrows = [];
 
-        addonToggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            addonDropdown.classList.toggle('open');
+        function syncDropdownState() {
+            document.body.classList.toggle('dropdown-open', dropdownWrappers.some(w => w.classList.contains('open')));
+        }
+
+        function closeAllDropdowns() {
+            dropdownWrappers.forEach(w => w.classList.remove('open'));
+            syncDropdownState();
+        }
+
+        // Mobil: plasser menyen rett over headeren slik at begge menyknappene fortsatt er synlige.
+        // Er det for lite plass, ligger menyen over headeren i stedet (se CSS).
+        const mobileMenuQuery = window.matchMedia('(max-width: 700px)');
+        function positionDropdown(wrapper) {
+            const panel = wrapper.querySelector('.dropdown-content');
+            const hdr = document.querySelector('header');
+            if (!panel || !hdr) return;
+            panel.style.bottom = '';
+            panel.style.maxHeight = '';
+            if (!mobileMenuQuery.matches) return;
+            const top = hdr.getBoundingClientRect().top;
+            const space = top - 66; // hold menyen under ☰-knappen øverst til høyre
+            if (space >= 220) {
+                panel.style.bottom = (document.documentElement.clientHeight - top + 6) + 'px';
+                panel.style.maxHeight = space + 'px';
+            }
+        }
+        window.addEventListener('resize', () => {
+            dropdownWrappers.forEach(w => { if (w.classList.contains('open')) positionDropdown(w); });
+        });
+
+        dropdownWrappers.forEach(wrapper => {
+            const toggleBtn = wrapper.querySelector(':scope > .btn');
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const willOpen = !wrapper.classList.contains('open');
+                closeAllDropdowns();
+                wrapper.classList.toggle('open', willOpen);
+                if (willOpen) positionDropdown(wrapper);
+                syncDropdownState();
+            });
+
+            const closeBtn = wrapper.querySelector('.dropdown-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    wrapper.classList.remove('open');
+                    syncDropdownState();
+                });
+            }
         });
 
         document.addEventListener('click', (e) => {
-            if (!addonDropdown.contains(e.target)) {
-                addonDropdown.classList.remove('open');
-            }
+            dropdownWrappers.forEach(w => {
+                if (!w.contains(e.target)) w.classList.remove('open');
+            });
+            syncDropdownState();
             document.querySelectorAll('.elem-settings-menu').forEach(m => m.classList.remove('open'));
         });
 
@@ -1424,7 +1692,7 @@
         }
 
         function addAddon(type) {
-            addonDropdown.classList.remove('open');
+            closeAllDropdowns();
             const t = i18n[currentLang];
 
             if (type === 'custom_title') {
